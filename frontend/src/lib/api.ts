@@ -52,3 +52,34 @@ export const api = {
 
 export const fmt = (n: number | null | undefined, d = 0) => (n == null ? "–" : n.toFixed(d));
 export const pct = (p: number | null | undefined) => (p == null ? "–" : `${Math.round(p * 100)}%`);
+
+// ---- Phase 1 types ----
+export type WeekPlayer = Brief & { slot: string | null; mean: number; sd: number; on_bye: boolean; opp: string | null; floor?: number; ceiling?: number; season_pts: number; stash_value: number; note?: string; vegas?: { implied?: number; opp_implied?: number; spread?: number } };
+export type Eval = { win_prob: number; mean: number; sd: number; p10: number; p90: number; opp_mean: number; opp_sd: number };
+export type Rec = { kind: string; headline: string; number: number; unit: string; secondary: string; confidence: "High" | "Medium" | "Low"; rationale: string; action: string; player_id?: string };
+export type StreamRow = { id: string; name: string; team: string | null; opp: string | null; mean: number; floor: number; ceiling: number; owner: number | null; mine: boolean; available: boolean; mechanism: string; opp_implied?: number; implied?: number; gameday?: string };
+export type Week = {
+  week: number; empty: boolean; message?: string; my_team?: string;
+  opponent: { slot: number | null; name: string | null; lineup?: WeekPlayer[]; eval?: { mean: number; sd: number } };
+  current?: { lineup: WeekPlayer[]; eval: Eval };
+  optimized?: { lineup: Record<string, WeekPlayer>; eval: Eval; posture: string; n_candidates: number; mean_eval: Eval };
+  roster?: WeekPlayer[]; recommendations?: Rec[]; streaming: { K: StreamRow[]; DEF: StreamRow[] };
+};
+export type PageRow = { text: string; position: string | null; nfl_team: string | null; status_code: string | null; fantasy_team: string | null; team: number | null; slot: string | null; action: string | null; date: string | null; status: "ok" | "ambiguous" | "unknown"; confidence: number; player_id: string | null; player_name: string | null; candidates: { id: string; name: string; pos: string; team: string | null; confidence: number }[] };
+
+export const api1 = {
+  week: () => j<Week>("/api/week"),
+  rosters: () => j<{ week: number; teams: { slot: number; name: string; players: WeekPlayer[] }[] }>("/api/rosters"),
+  seed: (replace = false) => j<{ rows: number }>("/api/rosters/seed-from-draft", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ replace }) }),
+  move: (player_id: string, slot: string, team?: number) => j<unknown>("/api/roster/move", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ player_id, slot, team }) }),
+  add: (player_id: string, drop_player_id?: string, team?: number) => j<unknown>("/api/roster/add", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ player_id, drop_player_id, team }) }),
+  drop: (player_id: string, team?: number) => j<unknown>("/api/roster/drop", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ player_id, team }) }),
+  applyOptimized: () => j<{ win_prob: number }>("/api/roster/apply-optimized", { method: "POST" }),
+  freeAgents: (pos = "ALL", sort = "week") => j<{ week: number; players: WeekPlayer[]; rostered: number }>(`/api/free-agents?pos=${pos}&sort=${sort}`),
+  importPage: (image: string) => j<{ page_type: string; fantasy_team: string | null; rows: PageRow[]; model: string }>("/api/import-page", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ image }) }),
+  applyPage: (team: number, mode: string, rows: PageRow[]) => j<{ applied: number }>("/api/import-page/apply", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ team, mode, rows }) }),
+  yahooStatus: () => j<{ configured: boolean; connected: boolean }>("/api/yahoo/status"),
+  yahooAuthUrl: () => j<{ url: string }>("/api/yahoo/auth-url"),
+  yahooCallback: (code: string) => j<{ connected: boolean }>("/api/yahoo/callback", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code }) }),
+  yahooSync: () => j<{ applied: { team: number; players: number }[] }>("/api/yahoo/sync", { method: "POST" }),
+};

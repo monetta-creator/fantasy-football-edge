@@ -159,3 +159,109 @@ def resolve(extracted: dict, players: list[Player], drafted_ids: set[str], team_
         })
     rows.sort(key=lambda r: (r["pick_no"] is None, r["pick_no"] or 0))
     return rows
+
+
+# ---- Generic Yahoo page transcription (roster / free agents / transactions) --------------------
+PAGE_SCHEMA = {
+    "name": "yahoo_page",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "page_type": {"type": "string", "description": "roster, free_agents, transactions, or other"},
+            "fantasy_team": {"type": ["string", "null"], "description": "team name if the page shows one roster"},
+            "rows": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "slot": {"type": ["string", "null"], "description": "roster slot label if shown (QB, WR, RB, TE, W/R, W/R/T, K, DEF, BN, IR)"},
+                        "player": {"type": "string"},
+                        "position": {"type": ["string", "null"]},
+                        "nfl_team": {"type": ["string", "null"]},
+                        "status": {"type": ["string", "null"], "description": "injury/status code shown (Q, O, IR, PUP, SUSP...)"},
+                        "fantasy_team": {"type": ["string", "null"], "description": "owning/acting fantasy team if shown"},
+                        "action": {"type": ["string", "null"], "description": "for transactions: add, drop, trade, or waiver"},
+                        "date": {"type": ["string", "null"]},
+                    },
+                    "required": ["slot", "player", "position", "nfl_team", "status", "fantasy_team", "action", "date"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["page_type", "fantasy_team", "rows"],
+        "additionalProperties": False,
+    },
+}
+
+PAGE_SYSTEM = (
+    "You transcribe Yahoo Fantasy Football pages (roster, free agent list, transaction log) from screenshots. "
+    "Return every player row you can read exactly as written, with the roster slot, position, NFL team, status code, "
+    "owning or acting fantasy team, action (for transactions) and date when visible. Omit unreadable rows. "
+    "Respond as JSON matching the schema."
+)
+
+
+def extract_page(settings: Settings, image_data_url: str, timeout: float = 45.0) -> dict | None:
+    if not settings.openrouter_api_key:
+        return None
+    body = {
+        "model": settings.openrouter_vision_model,
+        "max_tokens": 4000,
+        "temperature": 0.0,
+        "messages": [
+            {"role": "system", "content": PAGE_SYSTEM},
+            {"role": "user", "content": [
+                {"type": "text", "text": "Transcribe this Yahoo fantasy page."},
+                {"type": "image_url", "image_url": {"url": image_data_url}},
+            ]},
+        ],
+        "response_format": {"type": "json_schema", "json_schema": PAGE_SCHEMA},
+    }
+    data = _post(settings, body, timeout)
+    if not data:
+        return None
+    try:
+        txt = data["choices"][0]["message"]["content"].strip()
+        txt = re.sub(r"^```(?:json)?|```$", "", txt, flags=re.M).strip()
+        return json.loads(txt)
+    except Exception:
+        return None
+
+
+SLOT_ALIASES = {"W/R": "W/R", "WR/RB": "W/R", "W-R": "W/R", "FLEX": "W/R", "W/R/T": "W/R/T", "W-R-T": "W/R/T", "WR/RB/TE": "W/R/T",
+                "DEF": "DEF", "DST": "DEF", "D/ST": "DEF", "BN": "BN", "BENCH": "BN", "IR": "IR", "IR+": "IR"}
+
+
+def resolve_page(extracted: dict, players: list[Player], team_names: dict[int, str]) -> list[dict]:
+    """Match transcribed rows to pool players; returns rows with status ok/ambiguous/unknown."""
+    name_to_slot = {norm_name(v): k for k, v in team_names.items()}
+    page_team = extracted.get("fantasy_team")
+    rows = []
+    for cell in extracted.get("rows", []):
+        name = (cell.get("player") or "").strip()
+        if not name:
+            continue
+        cands = match_player(name, players, cell.get("position"), cell.get("nfl_team"))
+        status, chosen, conf = "unknown", None, 0.0
+        if cands:
+            chosen, conf = cands[0]
+            status = "ok" if conf >= 0.85 and (len(cands) == 1 or cands[1][1] < conf - 0.08) else "ambiguous"
+        ft = cell.get("fantasy_team") or page_team
+        team = None
+        if ft:
+            key = norm_name(ft)
+            team = name_to_slot.get(key)
+            if team is None:
+                best = max(((SequenceMatcher(None, key, k).ratio(), s) for k, s in name_to_slot.items()), default=(0, None))
+                if best[0] >= 0.8:
+                    team = best[1]
+        slot_raw = (cell.get("slot") or "").upper().strip()
+        slot = SLOT_ALIASES.get(slot_raw, slot_raw if slot_raw in ("QB", "RB", "WR", "TE", "K") else None)
+        rows.append({
+            "text": name, "position": cell.get("position"), "nfl_team": cell.get("nfl_team"), "status_code": cell.get("status"),
+            "fantasy_team": ft, "team": team, "slot": slot, "action": (cell.get("action") or "").lower() or None, "date": cell.get("date"),
+            "status": status, "confidence": round(conf, 2), "player_id": chosen.id if chosen else None, "player_name": chosen.name if chosen else None,
+            "candidates": [{"id": p.id, "name": p.name, "pos": p.pos, "team": p.team, "confidence": round(c, 2)} for p, c in cands],
+        })
+    return rows

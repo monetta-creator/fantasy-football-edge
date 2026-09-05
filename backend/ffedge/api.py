@@ -96,8 +96,9 @@ class AppState:
 
 
 STATE: AppState | None = None
-app = FastAPI(title="ffedge", version="0.1.0")
+app = FastAPI(title="ffedge", version="0.2.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+SCHEDULER = None
 
 
 def st() -> AppState:
@@ -111,6 +112,23 @@ def st() -> AppState:
 @app.on_event("startup")
 def _startup():
     st()
+    global SCHEDULER
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+
+        from . import api_week
+
+        SCHEDULER = BackgroundScheduler(daemon=True)
+        SCHEDULER.add_job(lambda: st().load(force=True), "interval", hours=6, id="refresh_pool")
+        SCHEDULER.add_job(lambda: api_week.week_rows(force=True), "interval", hours=3, id="refresh_week")
+        SCHEDULER.start()
+    except Exception as e:  # scheduler is a convenience; never block startup
+        st().error = f"scheduler: {e}"
+
+
+from . import api_week  # noqa: E402
+
+app.include_router(api_week.router)
 
 
 class PickIn(BaseModel):

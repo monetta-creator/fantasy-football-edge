@@ -33,6 +33,17 @@ Tests: `cd backend && .venv/bin/python -m pytest -q` (scoring rescaler, VORP, AD
 
 Recommendations recompute in about a second after every pick (300 draft simulations per candidate); the phone polls every 2.5 s.
 
+## Weekly loop (Phase 1)
+
+After the draft, open **Roster → Seed from draft** once. Then each week:
+
+1. **Week** tab: win probability for your current lineup vs. this week's opponent (from `data/league.json`), the max-win-probability lineup, and recommendation cards (lineup swaps, K/DEF streams, IR moves, bye warnings). Tap a card to *record* the move here, then make the same move in the Yahoo app. Yahoo's API is read-only, so nothing here changes Yahoo.
+2. **Roster** tab: every team's roster, slot changes, drops, IR choreography (bench/IR counts, IR-eligible players not yet parked). Import a roster or transactions screenshot to update any team; the vision model transcribes, names are matched, you confirm.
+3. **FA** tab: free agents ranked by this week's projection, season VORP, or IR-stash value; K/DEF streaming uses Vegas implied totals from the schedule file.
+4. **Settings**: data freshness, model replacement levels, Yahoo connect (when the application is approved).
+
+Weekly projections: Sleeper weekly raw stats scored with league rules, DST points-allowed blended with the Vegas opponent implied total, per-player variance from 2025 weekly stats. The lineup optimizer simulates 20,000 games per candidate lineup and picks the one with the highest win probability.
+
 ## What the model does
 
 - **Scoring**: every projection is stored as raw stats and scored with the league rules in `backend/ffedge/scoring.py` (6-pt pass TD, 25 yds/pt, full PPR, K distance buckets, DST points-allowed buckets).
@@ -58,7 +69,9 @@ FEATURE_BACKLOG.md     seeded feature proposals
 
 ## API (all under `/api`)
 
-`GET board`, `GET recommend`, `GET players?q=&pos=&sort=`, `GET players/{id}`, `POST pick {player_id, team?}`, `POST undo`, `POST reset`, `PUT teams {names}`, `GET pick-analysis`, `GET ir-stash`, `GET meta`, `POST refresh`, `GET log`.
+Draft: `GET board`, `GET recommend`, `GET players?q=&pos=&sort=`, `GET players/{id}`, `POST pick`, `POST picks/bulk`, `POST undo`, `POST reset`, `PUT teams`, `GET pick-analysis`, `GET ir-stash`, `POST import-screenshot`, `GET meta`, `POST refresh`, `GET log`.
+
+Week: `GET week`, `GET rosters`, `POST rosters/seed-from-draft`, `POST roster/move|add|drop|apply-lineup|apply-optimized`, `GET free-agents?pos=&sort=`, `POST import-page`, `POST import-page/apply`, `GET yahoo/status`, `GET yahoo/auth-url`, `POST yahoo/callback`, `POST yahoo/sync`.
 
 ## Next phases
 

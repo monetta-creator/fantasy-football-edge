@@ -1,14 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Meta, api, fmt } from "@/lib/api";
+import { Meta, api, api1, fmt } from "@/lib/api";
 
 export default function SettingsPage() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [names, setNames] = useState<Record<number, string>>({});
   const [msg, setMsg] = useState<string>("");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [yahoo, setYahoo] = useState<{ configured: boolean; connected: boolean } | null>(null);
+  const [authUrl, setAuthUrl] = useState<string | null>(null);
+  const [code, setCode] = useState("");
   const load = () => { api.meta().then(setMeta).catch((e) => setMsg(String(e))); api.board().then((b) => setNames(Object.fromEntries(Object.entries(b.teams).map(([k, v]) => [Number(k), v])))).catch(() => {}); };
-  useEffect(load, []);
+  useEffect(() => { load(); api1.yahooStatus().then(setYahoo).catch(() => {}); }, []);
   const src = (meta?.sources ?? {}) as Record<string, { age_s?: number; from_cache?: boolean; error?: string | null }>;
   return (
     <div className="space-y-4">
@@ -56,9 +59,21 @@ export default function SettingsPage() {
           <div className="flex gap-2"><button className="btn" style={{ background: "var(--red)", color: "#fff" }} onClick={() => api.reset().then(() => { setConfirmReset(false); setMsg("Draft board reset."); })}>Yes, clear all picks</button><button className="btn btn-ghost" onClick={() => setConfirmReset(false)}>Cancel</button></div>
         )}
       </div>
-      <div className="card p-4 text-sm muted">
-        <div className="text-[12px] font-semibold uppercase tracking-wide mb-2">Phase 1+ (not wired yet)</div>
-        Yahoo OAuth client ID/secret, OpenRouter key, autopilot rules, and IR+ toggle live in <code>.env</code> for now.
+      <div className="card p-4 text-sm">
+        <div className="text-[12px] font-semibold uppercase tracking-wide muted mb-2">Yahoo (read-only API)</div>
+        {!yahoo ? <div className="muted">…</div> : !yahoo.configured ? <div className="muted">Application pending. When approved, put YAHOO_CLIENT_ID and YAHOO_CLIENT_SECRET in <code>.env</code> and restart.</div> : yahoo.connected ? (
+          <div className="flex items-center gap-2"><span className="dot" style={{ background: "var(--green)" }} />Connected. <button className="pill" onClick={() => api1.yahooSync().then((r) => setMsg(`Synced ${r.applied.length} rosters from Yahoo.`)).catch((e) => setMsg(String(e)))}>Sync rosters now</button></div>
+        ) : (
+          <div className="space-y-2">
+            {!authUrl ? <button className="btn btn-primary" onClick={() => api1.yahooAuthUrl().then((r) => setAuthUrl(r.url)).catch((e) => setMsg(String(e)))}>Connect Yahoo</button> : (
+              <>
+                <div>1. <a className="underline" href={authUrl} target="_blank" rel="noreferrer">Sign in at Yahoo</a> and copy the code it shows.</div>
+                <div className="flex gap-2">2. <input className="flex-1" placeholder="paste code" value={code} onChange={(e) => setCode(e.target.value)} /><button className="btn btn-primary" onClick={() => api1.yahooCallback(code).then(() => { setMsg("Yahoo connected."); api1.yahooStatus().then(setYahoo); }).catch((e) => setMsg(String(e)))}>Finish</button></div>
+              </>
+            )}
+          </div>
+        )}
+        <div className="muted mt-2 text-[12px]">Yahoo grants read access only, so every move is still made by you in the Yahoo app; this tool records and recommends.</div>
       </div>
     </div>
   );

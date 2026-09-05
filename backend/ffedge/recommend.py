@@ -154,6 +154,17 @@ class Recommender:
             return float(max(self.arr.myval[i], 0.0) * NEED_TABLE[POS_INDEX[pos], min(c, 9)] + 1e-3 * self.arr.pts[i])
 
         avail.sort(key=lambda i: -cval(i))
+        # Late-round forced fills mirror the simulator: QB/TE from round R-3, DEF then K in the last two rounds.
+        must = []
+        if rnd >= config.ROUNDS - 1:
+            must = [pos for pos in ("DEF", "K") if my_counts.get(pos, 0) == 0]
+        if rnd >= config.ROUNDS - 3:
+            must = [pos for pos in ("QB", "TE") if my_counts.get(pos, 0) == 0] + must
+        if must:
+            pos = must[0]
+            forced = [i for i in avail if self.arr.pos[i] == pos][:limit]
+            if forced:
+                return forced
         chosen = [i for i in avail[:limit] if cval(i) > -1e8]
         # ensure the best available at each skill position is considered
         for pos in ("QB", "RB", "WR", "TE"):
