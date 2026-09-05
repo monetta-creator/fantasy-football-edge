@@ -407,7 +407,10 @@ def player_detail(player_id: str):
     hist = variance.history(player_id, _variance()) or {}
     owner = rosters.owner_of().get(player_id)
     names = draft_state.get_team_names()
+    from . import player_stats
+    weeks = hist.get("weeks", [])
     return {
+        "rates_2025": player_stats.rates_2025(p.pos, weeks), "consistency": player_stats.consistency(p.pos, weeks), "ranks": player_stats.position_ranks(p, s.players, _variance()),
         "id": p.id, "name": p.name, "pos": p.pos, "team": p.team, "bye": p.bye, "injury": p.injury, "adp": p.adp, "adp_sigma": p.adp_sigma,
         "adp_sources": p.adp_sources, "yahoo_rank": p.yahoo_rank, "proj_sources": p.proj_sources, "proj_spread": p.proj_spread,
         "vorp": p.vorp, "vols": p.vols, "repl_pts": p.__dict__.get("repl_pts"), "stash_value": p.__dict__.get("stash_value", 0.0), "outlook": p.outlook,

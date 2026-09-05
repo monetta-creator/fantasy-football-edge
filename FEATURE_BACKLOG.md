@@ -15,3 +15,6 @@ Seeded by hand from the handoff and from what the Phase 0 data showed. The Phase
 | 9 | proposed | Opponent tendency profiles | Learn each manager's draft/waiver habits (reach positions, drop timing) from transaction history | trade + waiver edges | L | Know who overpays for RBs. |
 | 10 | proposed | Screenshot sync of opponents' rosters weekly | Keeps opponent lineups current so win probability and trade targets are accurate | accuracy of every weekly number | S | One screenshot per opponent per week until the API is approved. |
 | 11 | proposed | Hosted scheduler (VPS/container) | Projection/injury refresh and future drop-watcher run while the laptop is closed | enables 4 | S | $5/month keeps the loop alive. |
+| 12 | shipped 2026-09-05 | Decide flow (two options + reasons) | Faster, better-justified picks under the clock | draft quality | M | Two cards, pick one. |
+| 13 | shipped 2026-09-05 | Player analytics + benchmark | Rates, consistency, trends, ranks, side-by-side comparison | start/sit accuracy | M | Stock-chart view of any player. |
+| 14 | proposed | Advanced 2025 metrics (EPA, air yards, target share) | nflverse weekly stats carry passing/rushing/receiving EPA and air yards; target share needs team totals | better projections for breakouts | S | Add efficiency to the player page. |

@@ -4,16 +4,20 @@ import { useState } from "react";
 export type WeekPoint = { week: number; opp: string | null; pts: number };
 
 /** Single-series weekly points line with a projected-mean reference line and hover crosshair. */
-export function PointsChart({ weeks, projMean, projLabel, maxWeek = 18 }: { weeks: WeekPoint[]; projMean?: number | null; projLabel?: string; maxWeek?: number }) {
+export function PointsChart({ weeks, projMean, projLabel, maxWeek = 18, compare, compareLabel, label, rolling }: { weeks: WeekPoint[]; projMean?: number | null; projLabel?: string; maxWeek?: number; compare?: WeekPoint[]; compareLabel?: string; label?: string; rolling?: { week: number; avg3: number }[] }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 640, H = 200, padL = 34, padR = 12, padT = 14, padB = 26;
-  const ys = weeks.map((w) => w.pts);
+  const ys = [...weeks.map((w) => w.pts), ...(compare ?? []).map((w) => w.pts)];
   const yMax = Math.max(10, ...ys, projMean ?? 0) * 1.1;
   const yMin = Math.min(0, ...ys);
   const x = (wk: number) => padL + ((wk - 1) / (maxWeek - 1)) * (W - padL - padR);
   const y = (v: number) => padT + (1 - (v - yMin) / (yMax - yMin)) * (H - padT - padB);
   const byWeek = new Map(weeks.map((w) => [w.week, w]));
+  const byWeekC = new Map((compare ?? []).map((w) => [w.week, w]));
   const path = weeks.map((w, i) => `${i === 0 ? "M" : "L"}${x(w.week).toFixed(1)},${y(w.pts).toFixed(1)}`).join(" ");
+  const pathC = (compare ?? []).map((w, i) => `${i === 0 ? "M" : "L"}${x(w.week).toFixed(1)},${y(w.pts).toFixed(1)}`).join(" ");
+  const pathR = (rolling ?? []).map((w, i) => `${i === 0 ? "M" : "L"}${x(w.week).toFixed(1)},${y(w.avg3).toFixed(1)}`).join(" ");
+  const hc = hover != null ? byWeekC.get(hover) : null;
   const ticks = niceTicks(yMin, yMax, 4);
   const hp = hover != null ? byWeek.get(hover) : null;
   const onMove = (e: React.MouseEvent<SVGSVGElement> | React.TouchEvent<SVGSVGElement>) => {
@@ -42,13 +46,27 @@ export function PointsChart({ weeks, projMean, projLabel, maxWeek = 18 }: { week
             <text x={padL + 4} y={y(projMean) - 5} fontSize={11} textAnchor="start" fill="var(--text)">{projLabel ?? "proj"} {projMean.toFixed(1)}</text>
           </g>
         )}
+        {rolling && rolling.length > 1 && <path d={pathR} fill="none" stroke="var(--muted)" strokeWidth={1.5} strokeDasharray="2 3" />}
+        {compare && compare.length > 0 && (
+          <>
+            <path d={pathC} fill="none" stroke="var(--amber)" strokeWidth={2} strokeLinejoin="round" />
+            {compare.map((w) => <circle key={"c" + w.week} cx={x(w.week)} cy={y(w.pts)} r={hover === w.week ? 6 : 4} fill="var(--amber)" stroke="var(--card)" strokeWidth={2} />)}
+          </>
+        )}
         <path d={path} fill="none" stroke="var(--blue)" strokeWidth={2} strokeLinejoin="round" />
         {weeks.map((w) => <circle key={w.week} cx={x(w.week)} cy={y(w.pts)} r={hover === w.week ? 6 : 4} fill="var(--blue)" stroke="var(--card)" strokeWidth={2} />)}
         {hp && <line x1={x(hp.week)} x2={x(hp.week)} y1={padT} y2={H - padB} stroke="var(--muted)" strokeWidth={1} strokeDasharray="3 3" />}
       </svg>
-      {hp && (
+      {(hp || hc) && (
         <div className="absolute top-0 left-1/2 -translate-x-1/2 pill" style={{ background: "var(--card)" }}>
-          <span className="muted">Wk {hp.week}{hp.opp ? ` vs ${hp.opp}` : ""}</span> <b className="tabular">{hp.pts.toFixed(1)}</b>
+          <span className="muted">Wk {hover}</span>{hp && <> <span className="dot" style={{ background: "var(--blue)" }} /> <b className="tabular">{hp.pts.toFixed(1)}</b>{hp.opp ? <span className="muted"> vs {hp.opp}</span> : null}</>}{hc && <> <span className="dot" style={{ background: "var(--amber)" }} /> <b className="tabular">{hc.pts.toFixed(1)}</b>{hc.opp ? <span className="muted"> vs {hc.opp}</span> : null}</>}
+        </div>
+      )}
+      {(compare || rolling) && (
+        <div className="flex gap-4 text-[11px] muted mt-1">
+          <span className="flex items-center gap-1"><span className="dot" style={{ background: "var(--blue)" }} />{label ?? "This player"}</span>
+          {compare && <span className="flex items-center gap-1"><span className="dot" style={{ background: "var(--amber)" }} />{compareLabel ?? "Comparison"}</span>}
+          {rolling && <span className="flex items-center gap-1"><span style={{ borderTop: "2px dotted var(--muted)", width: 14, display: "inline-block" }} />3-week average</span>}
         </div>
       )}
     </div>

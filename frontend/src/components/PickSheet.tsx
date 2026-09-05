@@ -7,8 +7,6 @@ type P = Brief & { ppg?: number; vols?: number; injury?: Brief["injury"]; stash_
 
 export function PickSheet({ p, board, onClose, onPick, busy }: { p: P; board: Board; onClose: () => void; onPick: (id: string, team?: number) => void; busy: boolean }) {
   const [team, setTeam] = useState<number>(board.on_clock_team ?? 1);
-  const [other, setOther] = useState(false);
-  const onClockName = board.on_clock_name ?? "";
   const inj = p.injury;
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center" onClick={onClose} style={{ background: "rgba(0,0,0,.35)" }}>
@@ -26,21 +24,13 @@ export function PickSheet({ p, board, onClose, onPick, busy }: { p: P; board: Bo
         {p.mechanism && <p className="mt-3 text-[13px] muted">{p.mechanism}</p>}
         {board.pick_no ? (
           <div className="mt-4 space-y-2">
-            {board.is_me ? (
-              <button disabled={busy} className="btn btn-green w-full text-[16px]" onClick={() => onPick(p.id)}>I took him · record my pick #{board.pick_no}</button>
-            ) : (
-              <button disabled={busy} className="btn btn-primary w-full text-[16px]" onClick={() => onPick(p.id)}>{onClockName} took him · #{board.pick_no}</button>
-            )}
-            {!other ? (
-              <button className="btn btn-ghost w-full text-[14px]" onClick={() => setOther(true)}>Different team…</button>
-            ) : (
-              <div className="flex gap-2">
-                <select className="flex-1" value={team} onChange={(e) => setTeam(Number(e.target.value))}>
-                  {Object.entries(board.teams).map(([slot, name]) => <option key={slot} value={slot}>{slot}. {name}</option>)}
-                </select>
-                <button disabled={busy} className="btn btn-primary" onClick={() => onPick(p.id, team)}>Mark</button>
-              </div>
-            )}
+            <div className="flex gap-2 items-center">
+              <select className="flex-1 text-[15px]" value={team} onChange={(e) => setTeam(Number(e.target.value))}>
+                {Object.entries(board.teams).map(([slot, name]) => <option key={slot} value={slot}>{slot}. {name}{Number(slot) === board.on_clock_team ? " (on the clock)" : ""}</option>)}
+              </select>
+              <button disabled={busy} className="btn btn-primary text-[15px]" onClick={() => onPick(p.id, team)}>Took him · #{board.pick_no}</button>
+            </div>
+            <button disabled={busy} className="btn btn-green w-full text-[16px]" onClick={() => onPick(p.id, 5)}>I took him</button>
           </div>
         ) : <div className="mt-4 muted text-sm">Draft complete.</div>}
         <div className="flex gap-2 mt-2">

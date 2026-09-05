@@ -13,9 +13,10 @@ import { IRStashPanel } from "@/components/IRStash";
 import { Pick4Panel } from "@/components/Pick4";
 import { ImportBoard } from "@/components/ImportBoard";
 import { Rankings } from "@/components/Rankings";
+import { Decide } from "@/components/Decide";
 
 type SheetP = Brief & { ppg?: number; vols?: number; stash_value?: number; mechanism?: string; p_gone_by_next?: number | null };
-const SUBTABS = ["Rankings", "Board", "Roster", "Scarcity", "Stash", "Plan"] as const;
+const SUBTABS = ["Decide", "Rankings", "Board", "Roster", "Scarcity", "Stash", "Plan"] as const;
 
 export default function DraftPage() {
   const [board, setBoard] = useState<Board | null>(null);
@@ -23,7 +24,7 @@ export default function DraftPage() {
   const [version, setVersion] = useState(0);
   const [sheet, setSheet] = useState<SheetP | null>(null);
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<(typeof SUBTABS)[number]>("Rankings");
+  const [tab, setTab] = useState<(typeof SUBTABS)[number]>("Decide");
   const [live, setLive] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -80,12 +81,12 @@ export default function DraftPage() {
       </header>
       {err && <div className="text-[12px]" style={{ color: "var(--red)" }}>{err}</div>}
 
-      {rec && !rec.done ? (
+      {tab !== "Decide" && (rec && !rec.done ? (
         <>
           <RecCard rec={rec} busy={busy} onDraftMe={(c) => doPick(c.id)} onOpen={(c) => setSheet(c)} />
           <Alternatives rec={rec} onOpen={(c) => setSheet(c)} />
         </>
-      ) : !done ? <div className="card p-5 text-sm muted">Computing recommendation…</div> : null}
+      ) : !done ? <div className="card p-5 text-sm muted">Computing recommendation…</div> : null)}
 
       <div className="flex gap-1.5 overflow-x-auto pt-1">
         {SUBTABS.map((t) => (
@@ -93,8 +94,9 @@ export default function DraftPage() {
         ))}
       </div>
 
+      {tab === "Decide" && <Decide busy={busy} onChoose={(id) => doPick(id, board.is_me ? undefined : 5)} />}
       {tab === "Rankings" && (
-        <Rankings version={version} busy={busy} onGone={(p) => doPick(p.id)} onMine={(p) => doPick(p.id, board.on_clock_team && board.is_me ? undefined : 5)} />
+        <Rankings version={version} busy={busy} onGone={(p) => setSheet(p)} onMine={(p) => doPick(p.id, board.is_me ? undefined : 5)} />
       )}
       {tab === "Board" && (
         <>

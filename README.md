@@ -22,7 +22,7 @@ Tests: `cd backend && .venv/bin/python -m pytest -q` (scoring rescaler, VORP, AD
 
 ## Draft-day walkthrough
 
-The Draft screen works as a tool: nothing polls or counts down unless you toggle **Live**. The **Rankings** tab is the cheat sheet (VORP tiers, ADP, gone-by probability); tap **Gone** as players come off the board and **Mine** for your own picks, and the recommendation card recomputes. **About** (last tab) explains every number.
+The Draft screen works as a tool: nothing polls or counts down unless you toggle **Live**. The **Decide** tab is the main flow: mark picks as they happen (Gone → pick the team; Mine for yours), press **Run**, and get two options side by side with a full reason list each, plus an optional AI comparison; press "I took …" on the one you chose. The **Rankings** tab is the cheat sheet (VORP tiers, ADP, gone-by probability); tap **Gone** as players come off the board and **Mine** for your own picks, and the recommendation card recomputes. **About** (last tab) explains every number.
 
 1. **Before the draft**: team names are preloaded from `data/league.json` (you are slot 5, "Show Me Your TDs"); Settings lets you edit them. Tap **Refresh projections** so the data is from the last hour. Open Draft → **Plan** tab to see the pick-5 comparison and what the board looks like at #20 / #29 for each choice.
 2. **As picks happen** (you draft in the Yahoo app; this is the monitor): the header shows who is on the clock. Tap the drafted player in the list (search box or position filter), then tap **"[Team] took him"**. The next team is now on the clock. Mistake? **Undo last**.
@@ -45,6 +45,10 @@ After the draft, open **Roster → Seed from draft** once. Then each week:
 4. **Settings**: data freshness, model replacement levels, Yahoo connect (when the application is approved).
 
 Weekly projections: Sleeper weekly raw stats scored with league rules, DST points-allowed blended with the Vegas opponent implied total, per-player variance from 2025 weekly stats. The lineup optimizer simulates 20,000 games per candidate lineup and picks the one with the highest win probability.
+
+## Player pages
+
+Click any player name. Hero numbers (this week, season projection, VORP), the 2025 weekly points chart re-scored with league rules with a 3-week rolling average and the 2026 per-game line, consistency tiles (startable / boom / bust / median / last 4 / half-season trend), position ranks, 2025 per-game rates, the projection breakdown by stat, every source's number, and an **AI summary** button. Type a name in **Benchmark against another player** to overlay his 2025 line and compare every metric side by side.
 
 ## What the model does
 

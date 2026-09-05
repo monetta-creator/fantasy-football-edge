@@ -15,3 +15,8 @@ def test_grounded_rejects_invented_number():
 def test_grounded_rejects_foreign_player_and_length():
     assert not grounded("Take Puka Nacua over Cooper Kupp; 336 pts.", FACTS, ["Puka Nacua"])
     assert not grounded(" ".join(["word"] * 40), FACTS, ["Puka Nacua"])
+
+
+def test_grounded_tolerates_verb_before_name_but_not_invented_player():
+    assert grounded("Draft Puka Nacua: 336 pts.", FACTS, ["Puka Nacua"])
+    assert not grounded("Draft Puka Nacua over Random Guy: 336 pts.", FACTS, ["Puka Nacua"])

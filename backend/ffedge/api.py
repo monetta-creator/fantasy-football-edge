@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import config, draft_state, llm, vision
+from . import config, decide as decide_mod, draft_state, llm, vision
 from .adp_model import p_gone_by
 from .draft_sim import DraftSim
 from .ir_stash import rank_stash
@@ -364,6 +364,45 @@ def explain_pick():
     facts, names = _pick_facts(out)
     res = llm.explain(s.settings, facts, names, "Explain why the recommended pick beats the alternatives at this pick, and the main risk.")
     return res
+
+
+@app.get("/api/decide")
+def decide_endpoint(fresh: bool = False):
+    """Top two options at my pick with detailed reasons. Uses the cached recommendation unless fresh=true."""
+    s = st()
+    picks = draft_state.get_picks()
+    if fresh:
+        s.rec_cache.pop(s.sig(picks), None)
+    out = s.recommend_for(picks)
+    if out.get("done"):
+        return {"done": True}
+    from . import api_week
+    return decide_mod.decide(out, picks, s.by_id, s.players, api_week._variance())
+
+
+@app.post("/api/decide/explain")
+def decide_explain():
+    """Grounded AI comparison of the two options."""
+    s = st()
+    picks = draft_state.get_picks()
+    out = s.recommend_for(picks)
+    if out.get("done"):
+        raise HTTPException(400, "draft complete")
+    from . import api_week
+    d = decide_mod.decide(out, picks, s.by_id, s.players, api_week._variance())
+    facts = {
+        "my pick": d["decision_pick"], "my next pick": d["next_pick"], "round": d["round"], "my roster so far": [f"{x['name']} ({x['pos']})" for x in d["my_picks_so_far"]] or "empty",
+        "option A": {"player": f"{d['options'][0]['name']} ({d['options'][0]['pos']}, {d['options'][0]['team']})", "reasons": [r["text"] for r in d["options"][0]["reasons"]]},
+        "option B": {"player": f"{d['options'][1]['name']} ({d['options'][1]['pos']}, {d['options'][1]['team']})", "reasons": [r["text"] for r in d["options"][1]["reasons"]]},
+        "model preference": f"{d['options'][0]['name']} by {d['margin']} roster value, confidence {d['confidence']}",
+    }
+    names = [o["name"] for o in d["options"]] + [x["name"] for x in d["my_picks_so_far"]]
+    # allow names mentioned inside reason texts (next-best players)
+    import re as _re
+    for o in d["options"]:
+        for r in o["reasons"]:
+            names += _re.findall(r"\(([A-Z][A-Za-z'.\- ]+), \d", r["text"])
+    return llm.explain(s.settings, facts, names, "Compare option A and option B for this pick in 3-4 sentences and say which to take and why.")
 
 
 @app.get("/api/log")

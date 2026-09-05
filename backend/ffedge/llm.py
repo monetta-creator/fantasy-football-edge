@@ -129,21 +129,31 @@ def _fact_numbers(facts: dict) -> set[float]:
     return out
 
 
-def grounded(text: str, facts: dict, allowed_names: list[str], max_words: int = 34) -> bool:
-    """True if every number in `text` appears in `facts` and no foreign player name is used."""
-    if not text or len(text.split()) > max_words:
-        return False
+def grounding_problem(text: str, facts: dict, allowed_names: list[str], max_words: int = 34) -> str | None:
+    """None if every number in `text` appears in `facts` and no foreign player name is used; else the reason."""
+    if not text:
+        return "empty"
+    if len(text.split()) > max_words:
+        return f"too long ({len(text.split())} words)"
     allowed = _fact_numbers(facts)
     for n in _numbers_in(text):
         if round(n, 2) in allowed or round(n, 1) in allowed or round(n) in allowed:
             continue
-        return False
-    # crude name guard: any "Firstname Lastname" capitalised pair must be an allowed name
+        return f"number {n:g} not in facts"
+    # name guard: a capitalised multi-word phrase must share a token with an allowed name (catches invented players,
+    # tolerates sentence-initial verbs like "Draft Christian McCaffrey")
+    allowed_tokens = {t.lower().strip(".'") for a in allowed_names for t in a.split() if len(t) > 2}
     for m in re.finditer(r"\b([A-Z][a-z'\.]+(?: [A-Z][a-z'\.]+)+)\b", text):
         cand = m.group(1)
-        if not any(cand in a or a in cand for a in allowed_names):
-            return False
-    return True
+        toks = {t.lower().strip(".'") for t in cand.split()}
+        if any(cand in a or a in cand for a in allowed_names) or (toks & allowed_tokens):
+            continue
+        return f"name '{cand}' not allowed"
+    return None
+
+
+def grounded(text: str, facts: dict, allowed_names: list[str], max_words: int = 34) -> bool:
+    return grounding_problem(text, facts, allowed_names, max_words) is None
 
 
 def rationale(settings: Settings, facts: dict, allowed_names: list[str]) -> str | None:
@@ -182,7 +192,8 @@ def explain(settings: Settings, facts: dict, allowed_names: list[str], question:
     user = "Fact sheet (JSON):\n" + json.dumps(facts, indent=1) + "\n\nTask: " + question
     obj = structured(settings, EXPLAIN_SYSTEM, user, EXPLAIN_SCHEMA, max_tokens=1500)
     text = obj.get("explanation", "").strip() if isinstance(obj, dict) else ""
-    if text and not grounded(text, facts, allowed_names, max_words=110):
-        _record("rejected", LAST.get("model"), LAST.get("ms"), "explanation used a number or name not in the fact sheet")
+    problem = grounding_problem(text, facts, allowed_names, max_words=110) if text else None
+    if text and problem:
+        _record("rejected", LAST.get("model"), LAST.get("ms"), f"rejected: {problem}")
         text = ""
     return {"text": text or None, **LAST}
