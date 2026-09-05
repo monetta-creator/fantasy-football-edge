@@ -64,6 +64,10 @@ export default function DraftPage() {
     setBusy(true);
     try { await api.undo(); setVersion((v) => v + 1); await refresh(); } finally { setBusy(false); }
   };
+  const doReset = async () => {
+    setBusy(true);
+    try { await api.reset(); setVersion((v) => v + 1); await refresh(); } finally { setBusy(false); }
+  };
 
   if (!board) return <div className="muted text-sm">{err ? `Backend not reachable: ${err}` : "Loading board…"}</div>;
   const done = board.pick_no == null;
@@ -81,7 +85,7 @@ export default function DraftPage() {
         </div>
       </header>
       {err && <div className="text-[12px]" style={{ color: "var(--red)" }}>{err}</div>}
-      <RecordPick board={board} busy={busy} mySlot={5} onUndo={doUndo} onPick={async (id, team) => { await doPick(id, team); }} />
+      <RecordPick board={board} busy={busy} mySlot={5} onUndo={doUndo} onReset={doReset} onPick={async (id, team) => { await doPick(id, team); }} />
 
       <nav className="flex gap-6 overflow-x-auto border-b line -mx-1 px-1" aria-label="Draft sections">
         {SUBTABS.map((t) => (

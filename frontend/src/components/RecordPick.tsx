@@ -4,8 +4,9 @@ import { Board, PlayerRow, fmt } from "@/lib/api";
 import { TeamChips } from "@/components/TeamChips";
 
 /** Persistent "record a pick" bar: search a player, tap him, tap the team he went to. */
-export function RecordPick({ board, onPick, onUndo, busy, mySlot }: { board: Board; onPick: (id: string, team: number) => Promise<void>; onUndo: () => void; busy: boolean; mySlot: number }) {
+export function RecordPick({ board, onPick, onUndo, onReset, busy, mySlot }: { board: Board; onPick: (id: string, team: number) => Promise<void>; onUndo: () => void; onReset: () => Promise<void>; busy: boolean; mySlot: number }) {
   const [q, setQ] = useState("");
+  const [confirmReset, setConfirmReset] = useState(false);
   const [opts, setOpts] = useState<PlayerRow[]>([]);
   const [sel, setSel] = useState<PlayerRow | null>(null);
   useEffect(() => {
@@ -27,6 +28,15 @@ export function RecordPick({ board, onPick, onUndo, busy, mySlot }: { board: Boa
           <div className="flex-1 flex items-center gap-2 min-w-[220px]"><span className={`font-bold pos-${sel.pos}`}>{sel.pos}</span><span className="font-semibold text-[15px]">{sel.name}</span><span className="muted text-[12px]">{sel.team ?? "FA"} · VORP {fmt(sel.vorp)} · ADP {fmt(sel.adp, 1)}</span><button type="button" className="pill ml-auto" onClick={() => { setSel(null); setQ(""); }}>change</button></div>
         )}
         <button type="button" disabled={busy || board.picks.length === 0} className="pill" onClick={onUndo}>Undo last</button>
+        {!confirmReset ? (
+          <button type="button" disabled={busy || board.picks.length === 0} className="pill" onClick={() => setConfirmReset(true)}>Reset board</button>
+        ) : (
+          <span className="flex items-center gap-1.5 text-[12px]">
+            <span style={{ color: "var(--red)" }}>Clear all {board.picks.length} picks?</span>
+            <button type="button" disabled={busy} className="pill" style={{ background: "var(--red)", color: "#fff", borderColor: "var(--red)" }} onClick={async () => { await onReset(); setConfirmReset(false); }}>Yes, clear</button>
+            <button type="button" className="pill" onClick={() => setConfirmReset(false)}>Keep</button>
+          </span>
+        )}
       </div>
       {!sel && opts.length > 0 && (
         <div className="mt-2 divide-y line">
