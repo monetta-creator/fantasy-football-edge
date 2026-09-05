@@ -10,3 +10,4 @@ frontend/.next/
 frontend/out/
 .DS_Store
 *.log
+data/logs/

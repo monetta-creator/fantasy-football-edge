@@ -11,10 +11,10 @@ cd fantasy-football
 cp .env.example .env            # optional: add OPENROUTER_API_KEY for LLM-written rationales
 cd backend && uv venv --python 3.12 .venv && uv pip install -e ".[dev]" && cd ..
 cd frontend && npm install && cd ..
-./dev.sh                         # starts backend :8000 and frontend :3000 on all interfaces
+./dev.sh                         # or double-click "Launch Edge.command" in Finder
 ```
 
-Then open `http://localhost:3000/draft` in your browser. (`dev.sh` also prints a LAN URL if you ever want it on a phone.)
+Then open `http://localhost:3000/draft` in your browser. The launcher does this for you and installs dependencies on first run. (`dev.sh` also prints a LAN URL if you ever want it on a phone.)
 
 First start pulls projections/ADP/injuries (about 10 s) and caches them in `data/cache/`. The draft board is in `data/ffedge.db`.
 
