@@ -81,18 +81,18 @@ export default function DraftPage() {
       </header>
       {err && <div className="text-[12px]" style={{ color: "var(--red)" }}>{err}</div>}
 
+      <nav className="flex gap-6 overflow-x-auto border-b line -mx-1 px-1" aria-label="Draft sections">
+        {SUBTABS.map((t) => (
+          <button key={t} onClick={() => setTab(t)} className={`py-2.5 text-[14px] whitespace-nowrap border-b-2 -mb-px ${tab === t ? "font-semibold" : "muted"}`} style={{ borderColor: tab === t ? "var(--text)" : "transparent" }}>{t}</button>
+        ))}
+      </nav>
+
       {tab !== "Decide" && (rec && !rec.done ? (
         <>
           <RecCard rec={rec} busy={busy} onDraftMe={(c) => doPick(c.id)} onOpen={(c) => setSheet(c)} />
           <Alternatives rec={rec} onOpen={(c) => setSheet(c)} />
         </>
       ) : !done ? <div className="card p-5 text-sm muted">Computing recommendation…</div> : null)}
-
-      <div className="flex gap-1.5 overflow-x-auto pt-1">
-        {SUBTABS.map((t) => (
-          <button key={t} onClick={() => setTab(t)} className="pill" style={tab === t ? { background: "var(--text)", color: "var(--bg)" } : {}}>{t}</button>
-        ))}
-      </div>
 
       {tab === "Decide" && <Decide busy={busy} onChoose={(id) => doPick(id, board.is_me ? undefined : 5)} />}
       {tab === "Rankings" && (
