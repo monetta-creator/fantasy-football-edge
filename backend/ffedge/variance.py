@@ -25,7 +25,9 @@ COLS = {
 }
 FUM_COLS = ["sack_fumbles_lost", "rushing_fumbles_lost", "receiving_fumbles_lost"]
 K_COLS = {"fg_made_0_19": "fg_0_19", "fg_made_20_29": "fg_20_29", "fg_made_30_39": "fg_30_39", "fg_made_40_49": "fg_40_49", "pat_made": "xp_made"}
-EXTRA = {"QB": ["attempts", "completions", "carries"], "RB": ["carries", "targets"], "WR": ["targets", "carries"], "TE": ["targets"], "K": ["fg_att", "fg_long"]}
+ADV = ["passing_epa", "rushing_epa", "receiving_epa", "receiving_air_yards", "receiving_yards_after_catch", "passing_air_yards", "passing_yards_after_catch",
+       "target_share", "air_yards_share", "wopr", "racr", "rushing_first_downs", "receiving_first_downs", "passing_first_downs"]
+EXTRA = {"QB": ["attempts", "completions", "carries"] + ADV, "RB": ["carries", "targets"] + ADV, "WR": ["targets", "carries"] + ADV, "TE": ["targets", "carries"] + ADV, "K": ["fg_att", "fg_long"]}
 # Position-level weekly CV fallbacks (medians from 2025 weekly stats).
 POS_CV = {"QB": 0.47, "RB": 0.57, "WR": 0.58, "TE": 0.63, "K": 0.5, "DEF": 0.7}
 MIN_GAMES = 6
@@ -41,6 +43,16 @@ def _f(v) -> float:
 def _fetch(season: int) -> dict:
     r = httpx.get(PLAYER_URL.format(season=season), timeout=120, follow_redirects=True)
     r.raise_for_status()
+    # team weekly carries/attempts for share metrics
+    team_tot: dict[tuple[str, int], dict] = {}
+    try:
+        tt = httpx.get(TEAM_URL.format(season=season), timeout=90, follow_redirects=True)
+        tt.raise_for_status()
+        for trow in csv.DictReader(io.StringIO(tt.text)):
+            if trow.get("season_type") == "REG":
+                team_tot[(norm_team(trow["team"]), int(trow["week"]))] = {"carries": _f(trow.get("carries")), "attempts": _f(trow.get("attempts"))}
+    except Exception:
+        pass
     series: dict[str, list[dict]] = {}
     names: dict[str, str] = {}
     for row in csv.DictReader(io.StringIO(r.text)):
@@ -57,7 +69,10 @@ def _fetch(season: int) -> dict:
                 if row.get(c) not in (None, "", "NA"):
                     st[k] = _f(row.get(c))
             st["fum_lost"] = sum(_f(row.get(c)) for c in FUM_COLS)
-        extra = {c: _f(row.get(c)) for c in EXTRA.get(pos, []) if row.get(c) not in (None, "", "NA")}
+        extra = {c: round(_f(row.get(c)), 3) for c in EXTRA.get(pos, []) if row.get(c) not in (None, "", "NA")}
+        tt_row = team_tot.get((norm_team(row.get("team")), int(row["week"])))
+        if tt_row and pos in ("RB", "QB", "WR", "TE") and tt_row.get("carries"):
+            extra["rush_share"] = round(_f(row.get("carries")) / tt_row["carries"], 3)
         key = f"{pos}:{norm_name(row['player_display_name'])}"
         series.setdefault(key, []).append({"week": int(row["week"]), "opp": norm_team(row.get("opponent_team")), "team": norm_team(row.get("team")), "pts": round(score(st), 2), "stats": {k: round(v, 1) for k, v in st.items() if v}, **({"extra": extra} if extra else {})})
         names[key] = row["player_display_name"]
@@ -103,7 +118,7 @@ def _fetch(season: int) -> dict:
 
 
 def load(season: int = config.SEASON - 1, force: bool = False) -> tuple[dict, dict]:
-    return cached_json(f"history_{season}", lambda: _fetch(season), ttl_seconds=30 * 24 * 3600, force=force)
+    return cached_json(f"history_{season}_v2", lambda: _fetch(season), ttl_seconds=30 * 24 * 3600, force=force)
 
 
 def history(player_key: str, table: dict) -> dict | None:

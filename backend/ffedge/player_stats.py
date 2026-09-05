@@ -23,17 +23,30 @@ def rates_2025(pos: str, weeks: list[dict]) -> dict:
     S = lambda k: sum(float(w.get("stats", {}).get(k, 0) or 0) for w in weeks)  # noqa: E731
     E = lambda k: sum(float(w.get("extra", {}).get(k, 0) or 0) for w in weeks)  # noqa: E731
     out: dict[str, float | None] = {"games": g}
+    def share(k):
+        vals = [float(w.get("extra", {}).get(k)) for w in weeks if w.get("extra", {}).get(k) is not None]
+        return round(100 * statistics.fmean(vals), 1) if vals else None
+
     if pos == "QB":
         att, cmp_, py, ptd, pint, ry, rtd, car = E("attempts"), E("completions"), S("pass_yd"), S("pass_td"), S("pass_int"), S("rush_yd"), S("rush_td"), E("carries")
+        pepa, repa, pay, pyac, pfd = E("passing_epa"), E("rushing_epa"), E("passing_air_yards"), E("passing_yards_after_catch"), E("passing_first_downs")
         out.update({"pass_att_per_game": round(att / g, 1), "comp_pct": round(100 * cmp_ / att, 1) if att else None, "yds_per_att": round(py / att, 2) if att else None,
                     "pass_yds_per_game": round(py / g, 1), "pass_td_rate_pct": round(100 * ptd / att, 2) if att else None, "int_rate_pct": round(100 * pint / att, 2) if att else None,
-                    "rush_yds_per_game": round(ry / g, 1), "rush_td": rtd, "carries_per_game": round(car / g, 1)})
+                    "rush_yds_per_game": round(ry / g, 1), "rush_td": rtd, "carries_per_game": round(car / g, 1),
+                    "pass_epa_per_game": round(pepa / g, 2), "epa_per_dropback": round(pepa / att, 3) if att else None, "rush_epa_per_game": round(repa / g, 2),
+                    "adot": round(pay / att, 1) if att else None, "yac_pct_of_yds": round(100 * pyac / py, 1) if py else None, "first_downs_per_game": round(pfd / g, 1)})
     elif pos in ("RB", "WR", "TE"):
         tg, rec, ry, rtd, car, ruy, rutd = E("targets"), S("rec"), S("rec_yd"), S("rec_td"), E("carries"), S("rush_yd"), S("rush_td")
+        repa, rrepa, ay, yac, rfd, rufd = E("receiving_epa"), E("rushing_epa"), E("receiving_air_yards"), E("receiving_yards_after_catch"), E("receiving_first_downs"), E("rushing_first_downs")
         out.update({"targets_per_game": round(tg / g, 1), "receptions_per_game": round(rec / g, 1), "catch_pct": round(100 * rec / tg, 1) if tg else None,
                     "yds_per_target": round(ry / tg, 2) if tg else None, "yds_per_rec": round(ry / rec, 1) if rec else None, "rec_yds_per_game": round(ry / g, 1),
                     "rec_td": rtd, "carries_per_game": round(car / g, 1), "yds_per_carry": round(ruy / car, 2) if car else None, "rush_yds_per_game": round(ruy / g, 1), "rush_td": rutd,
-                    "touches_per_game": round((rec + car) / g, 1), "td_per_game": round((rtd + rutd) / g, 2)})
+                    "touches_per_game": round((rec + car) / g, 1), "td_per_game": round((rtd + rutd) / g, 2),
+                    "target_share_pct": share("target_share"), "air_yards_share_pct": share("air_yards_share"), "rush_share_pct": share("rush_share"),
+                    "wopr": round(statistics.fmean([float(w["extra"]["wopr"]) for w in weeks if w.get("extra", {}).get("wopr") is not None]), 2) if any(w.get("extra", {}).get("wopr") is not None for w in weeks) else None,
+                    "adot": round(ay / tg, 1) if tg else None, "racr": round(ry / ay, 2) if ay else None, "yac_per_rec": round(yac / rec, 1) if rec else None, "air_yds_per_game": round(ay / g, 1),
+                    "rec_epa_per_game": round(repa / g, 2), "rush_epa_per_game": round(rrepa / g, 2), "epa_per_target": round(repa / tg, 3) if tg else None, "epa_per_carry": round(rrepa / car, 3) if car else None,
+                    "first_downs_per_game": round((rfd + rufd) / g, 1)})
     elif pos == "K":
         fgm = S("fg_0_19") + S("fg_20_29") + S("fg_30_39") + S("fg_40_49") + S("fg_50p")
         att = E("fg_att")

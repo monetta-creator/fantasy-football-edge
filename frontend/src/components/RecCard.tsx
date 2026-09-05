@@ -33,8 +33,8 @@ export function RecCard({ rec, onDraftMe, onOpen, busy }: { rec: Recommend; onDr
           <div className="text-[11px] muted mt-1 uppercase tracking-wide">Proj pts</div>
         </div>
         <div>
-          <div className="text-[28px] leading-none font-bold tabular">{rec.next_pick ? pct(c.p_gone_by_next) : "–"}</div>
-          <div className="text-[11px] muted mt-1 uppercase tracking-wide">Gone by #{rec.next_pick ?? "–"}</div>
+          <div className="text-[28px] leading-none font-bold tabular">{(() => { const sc = rec.scarcity.find((x) => x.pos === c.pos); return sc?.dropoff_to_next != null ? `−${fmt(sc.dropoff_to_next)}` : "–"; })()}</div>
+          <div className="text-[11px] muted mt-1 uppercase tracking-wide">If you wait on {c.pos} to #{rec.next_pick ?? "–"}</div>
         </div>
       </div>
       <p className="text-[14px] mt-4 leading-snug">{rec.rationale_llm ?? rec.rationale}</p>

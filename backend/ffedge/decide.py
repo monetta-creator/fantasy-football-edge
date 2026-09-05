@@ -124,9 +124,12 @@ def decide(rec: dict, picks: list[dict], by_id: dict[str, Player], players: list
         return {"error": "not enough candidates"}
     a, b = cands
     options = []
+    sc = {x["pos"]: x for x in rec.get("scarcity", [])}
     for c, other in ((a, b), (b, a)):
         h = (hist_table.get("players") or {}).get(c["id"])
-        options.append({**c, "reasons": reasons_for(c, other, rec, picks, by_id, players, h), "history": ({"games": h["games"], "mean": h["mean"], "sd": h["sd"]} if h else None)})
+        s_pos = sc.get(c["pos"]) or {}
+        options.append({**c, "reasons": reasons_for(c, other, rec, picks, by_id, players, h), "history": ({"games": h["games"], "mean": h["mean"], "sd": h["sd"]} if h else None),
+                        "wait_cost": s_pos.get("dropoff_to_next"), "wait_best": s_pos.get("expected_best_at_next")})
     return {
         "pick_no": rec["pick_no"], "decision_pick": rec["decision_pick"], "is_me": rec["is_me"], "next_pick": rec.get("next_pick"), "round": rec.get("round"),
         "options": options, "margin": rec["margin"], "confidence": rec["confidence"], "n_sims": rec.get("n_sims"), "computed_ms": rec.get("computed_ms"),

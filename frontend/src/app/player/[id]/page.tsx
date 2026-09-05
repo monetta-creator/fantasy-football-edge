@@ -17,10 +17,16 @@ type Detail = {
 };
 const RATE_LABELS: Record<string, string> = { games: "Games", pass_att_per_game: "Att/g", comp_pct: "Comp %", yds_per_att: "Yds/att", pass_yds_per_game: "Pass yds/g", pass_td_rate_pct: "TD %", int_rate_pct: "INT %", rush_yds_per_game: "Rush yds/g", rush_td: "Rush TD", carries_per_game: "Carries/g",
   targets_per_game: "Targets/g", receptions_per_game: "Rec/g", catch_pct: "Catch %", yds_per_target: "Yds/target", yds_per_rec: "Yds/rec", rec_yds_per_game: "Rec yds/g", rec_td: "Rec TD", yds_per_carry: "Yds/carry", touches_per_game: "Touches/g", td_per_game: "TD/g",
-  fg_made_per_game: "FG/g", fg_pct: "FG %", fg_50plus: "50+ made", xp_per_game: "XP/g", long: "Long", sacks_per_game: "Sacks/g", takeaways_per_game: "Takeaways/g", def_td: "TDs", pts_allowed_per_game: "PA/g" };
+  fg_made_per_game: "FG/g", fg_pct: "FG %", fg_50plus: "50+ made", xp_per_game: "XP/g", long: "Long", sacks_per_game: "Sacks/g", takeaways_per_game: "Takeaways/g", def_td: "TDs", pts_allowed_per_game: "PA/g",
+  target_share_pct: "Target share %", air_yards_share_pct: "Air-yards share %", rush_share_pct: "Rush share %", wopr: "WOPR", adot: "aDOT", racr: "RACR", yac_per_rec: "YAC/rec", air_yds_per_game: "Air yds/g",
+  rec_epa_per_game: "Rec EPA/g", rush_epa_per_game: "Rush EPA/g", epa_per_target: "EPA/target", epa_per_carry: "EPA/carry", first_downs_per_game: "1st downs/g",
+  pass_epa_per_game: "Pass EPA/g", epa_per_dropback: "EPA/dropback", yac_pct_of_yds: "YAC % of yds" };
+const RATE_HELP: Record<string, string> = { wopr: "Weighted opportunity: 1.5 × target share + 0.7 × air-yards share", adot: "Average depth of target (air yards per target)", racr: "Receiving yards per air yard", epa_per_target: "Expected points added per target", epa_per_carry: "Expected points added per carry", epa_per_dropback: "Expected points added per pass attempt" };
 const LABELS: Record<string, string> = { pass_yd: "Pass yds", pass_td: "Pass TD", pass_int: "INT", pass_2pt: "Pass 2pt", rush_yd: "Rush yds", rush_td: "Rush TD", rush_2pt: "Rush 2pt", rec: "Receptions", rec_yd: "Rec yds", rec_td: "Rec TD", rec_2pt: "Rec 2pt", fum_lost: "Fumbles lost", ret_td: "Return TD",
   fg_0_19: "FG 0-19", fg_20_29: "FG 20-29", fg_30_39: "FG 30-39", fg_0_39: "FG 0-39", fg_40_49: "FG 40-49", fg_50p: "FG 50+", xp_made: "XP", dst_sack: "Sacks", dst_int: "INT", dst_fum_rec: "Fum rec", dst_td: "Def TD", dst_safety: "Safety", dst_blk: "Blocks", dst_ret_td: "Return TD", dst_pa_0: "PA 0", dst_pa_1_6: "PA 1-6", dst_pa_7_13: "PA 7-13", dst_pa_14_20: "PA 14-20", dst_pa_21_27: "PA 21-27", dst_pa_28_34: "PA 28-34", dst_pa_35p: "PA 35+", pa: "Pts allowed" };
 const WEEK_COLS: Record<string, string[]> = { QB: ["pass_yd", "pass_td", "pass_int", "rush_yd", "rush_td"], RB: ["rush_yd", "rush_td", "rec", "rec_yd", "rec_td"], WR: ["rec", "rec_yd", "rec_td", "rush_yd"], TE: ["rec", "rec_yd", "rec_td"], K: ["fg_0_19", "fg_20_29", "fg_30_39", "fg_40_49", "fg_50p", "xp_made"], DEF: ["dst_sack", "dst_int", "dst_fum_rec", "dst_td", "pa"] };
+const WEEK_EXTRA: Record<string, [string, string, number][]> = { QB: [["attempts", "Att", 0], ["passing_epa", "EPA", 1]], RB: [["carries", "Car", 0], ["targets", "Tgt", 0], ["rush_share", "Rush%", 0]], WR: [["targets", "Tgt", 0], ["target_share", "Tgt%", 0], ["receiving_air_yards", "AirY", 0], ["receiving_epa", "EPA", 1]], TE: [["targets", "Tgt", 0], ["target_share", "Tgt%", 0], ["receiving_epa", "EPA", 1]], K: [], DEF: [] };
+const pctish = (k: string, v: number | undefined) => (v == null ? undefined : k.endsWith("share") ? v * 100 : v);
 
 export default function PlayerPage() {
   const { id } = useParams<{ id: string }>();
@@ -120,8 +126,8 @@ export default function PlayerPage() {
         {showTable && (
           <div className="overflow-x-auto mt-2">
             <table className="text-[12px] tabular w-full">
-              <thead><tr className="muted text-left"><th className="pr-2">Wk</th><th className="pr-2">Opp</th><th className="pr-2 text-right">Pts</th>{cols.map((c) => <th key={c} className="pr-2 text-right">{LABELS[c] ?? c}</th>)}</tr></thead>
-              <tbody>{d.history.weeks.map((w) => <tr key={w.week} className="border-t line"><td className="pr-2">{w.week}</td><td className="pr-2">{w.opp ?? ""}</td><td className="pr-2 text-right font-semibold">{fmt(w.pts, 1)}</td>{cols.map((c) => <td key={c} className="pr-2 text-right">{fmt(w.stats?.[c] ?? 0, c.includes("yd") || c === "pa" ? 0 : c.startsWith("fg") || c === "xp_made" ? 0 : 0)}</td>)}</tr>)}</tbody>
+              <thead><tr className="muted text-left"><th className="pr-2">Wk</th><th className="pr-2">Opp</th><th className="pr-2 text-right">Pts</th>{cols.map((c) => <th key={c} className="pr-2 text-right">{LABELS[c] ?? c}</th>)}{(WEEK_EXTRA[d.pos] ?? []).map(([k, l]) => <th key={k} className="pr-2 text-right">{l}</th>)}</tr></thead>
+              <tbody>{d.history.weeks.map((w) => <tr key={w.week} className="border-t line"><td className="pr-2">{w.week}</td><td className="pr-2">{w.opp ?? ""}</td><td className="pr-2 text-right font-semibold">{fmt(w.pts, 1)}</td>{cols.map((c) => <td key={c} className="pr-2 text-right">{fmt(w.stats?.[c] ?? 0, 0)}</td>)}{(WEEK_EXTRA[d.pos] ?? []).map(([k, , dec]) => <td key={k} className="pr-2 text-right">{fmt(pctish(k, w.extra?.[k]), dec)}</td>)}</tr>)}</tbody>
             </table>
           </div>
         )}
@@ -140,7 +146,7 @@ export default function PlayerPage() {
             <>
               <div className="text-[12px] font-semibold uppercase tracking-wide muted mt-4 mb-1">2025 rates</div>
               <div className="grid grid-cols-3 gap-x-3 gap-y-1 text-[12px] tabular">
-                {Object.entries(d.rates_2025).filter(([k, v]) => k !== "games" && v != null).map(([k, v]) => <div key={k} className="flex justify-between border-b line py-0.5"><span className="muted">{RATE_LABELS[k] ?? k}</span><span className="font-semibold">{fmt(v, Number.isInteger(v) ? 0 : 1)}</span></div>)}
+                {Object.entries(d.rates_2025).filter(([k, v]) => k !== "games" && v != null).map(([k, v]) => <div key={k} className="flex justify-between border-b line py-0.5" title={RATE_HELP[k]}><span className="muted">{RATE_LABELS[k] ?? k}</span><span className="font-semibold">{fmt(v, Number.isInteger(v) ? 0 : k.startsWith("epa") || k === "racr" || k === "wopr" ? 2 : 1)}</span></div>)}
               </div>
             </>
           )}
