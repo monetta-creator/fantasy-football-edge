@@ -1,0 +1,65 @@
+# Edge — fantasy football platform for "Marian Prayers" (Yahoo league 872372)
+
+AI-assisted manager for one 12-team Yahoo league. Phase 0 (this build) is the **draft assistant**: live board, Monte Carlo pick recommendations rescaled to this league's exact scoring, positional scarcity, opponent-ADP availability, and IR-stash ranking. Draft: **Sunday Sept 6, 2026, 6:00 pm EDT, pick 5, 15 rounds**. League facts (slot, roster, team names, schedule) live in `data/league.json`.
+
+## Setup (Mac)
+
+Requirements: Python 3.11+ with [uv](https://docs.astral.sh/uv/), Node 20+.
+
+```bash
+cd fantasy-football
+cp .env.example .env            # optional: add OPENROUTER_API_KEY for LLM-written rationales
+cd backend && uv venv --python 3.12 .venv && uv pip install -e ".[dev]" && cd ..
+cd frontend && npm install && cd ..
+./dev.sh                         # starts backend :8000 and frontend :3000 on all interfaces
+```
+
+`dev.sh` prints the LAN URL (for example `http://192.168.1.20:3000/draft`). Open it on your iPhone (same Wi-Fi), then Share → **Add to Home Screen** so it runs full-screen.
+
+First start pulls projections/ADP/injuries (about 10 s) and caches them in `data/cache/`. The draft board is in `data/ffedge.db`.
+
+Tests: `cd backend && .venv/bin/python -m pytest -q` (scoring rescaler, VORP, ADP model, draft sim, state, LLM grounding).
+
+## Draft-day walkthrough
+
+1. **Before the draft**: team names are preloaded from `data/league.json` (you are slot 5, "Show Me Your TDs"); Settings lets you edit them. Tap **Refresh projections** so the data is from the last hour. Open Draft → **Plan** tab to see the pick-5 comparison and what the board looks like at #20 / #29 for each choice.
+2. **As picks happen** (you draft in the Yahoo app; this is the monitor): the header shows who is on the clock. Tap the drafted player in the list (search box or position filter), then tap **"[Team] took him"**. The next team is now on the clock. Mistake? **Undo last**.
+   Faster: with `OPENROUTER_API_KEY` set, tap **Photo / screenshot** on the Board tab, take a screenshot of the Yahoo board, and confirm the transcribed picks; they are applied in order.
+3. **When you are on the clock**: the green card is the answer. Big number = VORP (points over what will be free on waivers). Below it: projected points and the chance he is gone by your next pick. Make the pick in Yahoo, then tap **I took him · record pick** here. The four alternatives show their VORP and "gone by #N" probability. The clock pill counts down 2:00 from each new pick; tap it to restart.
+4. **Between your picks** the card shows the *target* for your next pick with its availability probability, so you can pre-decide.
+5. **Scarcity** tab: drop-off from the best available now to the expected best at your next pick, per position, plus who is likely to still be there.
+6. **Stash** tab: injured players ranked by return-week value. Blue dot = can go straight to an IR slot on Yahoo; amber = must sit on the bench first (Questionable/Out with IR-only slots).
+7. Rounds 12–15 the model starts considering K/DEF; it will not recommend them earlier because streaming replaces them for free.
+
+Recommendations recompute in about a second after every pick (300 draft simulations per candidate); the phone polls every 2.5 s.
+
+## What the model does
+
+- **Scoring**: every projection is stored as raw stats and scored with the league rules in `backend/ffedge/scoring.py` (6-pt pass TD, 25 yds/pt, full PPR, K distance buckets, DST points-allowed buckets).
+- **Projections**: ESPN and Sleeper/Rotowire blended per stat (K/DST from ESPN only). Source disagreement is shown per player.
+- **ADP**: 0.6 Yahoo average pick + 0.2 Sleeper + 0.2 ESPN, with a pick-variance model that widens for later picks and for source disagreement.
+- **Replacement level**: expected best player left undrafted after 180 picks, per position, plus a streaming uplift for K/DEF. VORP = points − replacement. The league-wide lineup allocation (empirical flex shares) is shown in Settings.
+- **Recommendation**: for each candidate, simulate the rest of the draft (opponents pick by noisy ADP with roster caps; my later picks follow need-weighted VORP) and score my final roster. Highest expected roster value wins; confidence reflects the margin over the runner-up versus simulation noise.
+- **IR stash**: weighted surplus over replacement from expected return week (ESPN injuries feed) through week 17, playoff weeks weighted 1.5×, discounted by designation risk.
+- **LLM (optional)**: OpenRouter open-source model rewrites the rationale sentence from a fact sheet under a strict JSON schema; any output with a number not in the facts is discarded. Numbers never come from the model.
+
+## Layout
+
+```
+backend/ffedge/        FastAPI app (api.py), scoring, players (pool builder), vorp, adp_model, draft_sim, recommend, ir_stash, draft_state, llm
+backend/ffedge/sources sleeper, espn, yahoo_public, injuries (ESPN), schedule (nflverse), cache
+backend/tests/         pytest suite
+frontend/src/app       Next.js screens: draft (live), dashboard/roster/free-agents/trades/playoffs/ideas (Phase 1+ stubs), settings
+frontend/src/components RecCard, Alternatives, PlayerList, PickSheet, RosterTray, Scarcity, IRStash, Pick4, BoardStrip, PickClock
+data/                  cache/ (source JSON), ffedge.db (draft board)
+DECISIONS.md           every modelling and stack decision, with reasons
+FEATURE_BACKLOG.md     seeded feature proposals
+```
+
+## API (all under `/api`)
+
+`GET board`, `GET recommend`, `GET players?q=&pos=&sort=`, `GET players/{id}`, `POST pick {player_id, team?}`, `POST undo`, `POST reset`, `PUT teams {names}`, `GET pick-analysis`, `GET ir-stash`, `GET meta`, `POST refresh`, `GET log`.
+
+## Next phases
+
+Yahoo's API is read-only and requires an approved application. Phase 1 will support two sync paths: Yahoo OAuth (if approved) and browser/screenshot sync. Execution (adds, drops, lineups, IR moves) is done by you in the Yahoo app. See `claude_code_handoff.md` for the full plan.

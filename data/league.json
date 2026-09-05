@@ -1,0 +1,23 @@
+{
+  "league_id": 872372,
+  "name": "Marian Prayers",
+  "my_team": "Show Me Your TDs",
+  "my_slot": 5,
+  "num_teams": 12,
+  "bench_slots": 6,
+  "ir_slots": 6,
+  "rounds": 15,
+  "ir_plus": false,
+  "teams": {
+    "1": "Bo-tiful Chaos", "2": "TheresAlwaysThisYear", "3": "I Feel DANgerous", "4": "Cleveland Connors",
+    "5": "Show Me Your TDs", "6": "SESDA", "7": "Fantasy Browns", "8": "Trophy Wife",
+    "9": "Poop in a Bag", "10": "Injured Reserve", "11": "Brook Park Brownies", "12": "D Minus"
+  },
+  "my_schedule": {
+    "1": "Injured Reserve", "2": "TheresAlwaysThisYear", "3": "Fantasy Browns", "4": "D Minus",
+    "5": "Poop in a Bag", "6": "Trophy Wife", "7": "Cleveland Connors", "8": "Brook Park Brownies",
+    "9": "SESDA", "10": "Bo-tiful Chaos", "11": "I Feel DANgerous", "12": "Injured Reserve",
+    "13": "TheresAlwaysThisYear", "14": "Fantasy Browns"
+  },
+  "notes": "Rounds = 9 starters + 6 bench (Yahoo drafts every non-IR roster spot). Verify in the draft lobby; change here if different."
+}
