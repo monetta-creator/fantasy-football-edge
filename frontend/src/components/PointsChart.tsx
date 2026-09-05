@@ -39,7 +39,7 @@ export function PointsChart({ weeks, projMean, projLabel, maxWeek = 18 }: { week
         {projMean != null && projMean > 0 && (
           <g>
             <line x1={padL} x2={W - padR} y1={y(projMean)} y2={y(projMean)} stroke="var(--green)" strokeWidth={2} strokeDasharray="6 4" />
-            <text x={W - padR} y={y(projMean) - 5} fontSize={11} textAnchor="end" fill="var(--text)">{projLabel ?? "proj"} {projMean.toFixed(1)}</text>
+            <text x={padL + 4} y={y(projMean) - 5} fontSize={11} textAnchor="start" fill="var(--text)">{projLabel ?? "proj"} {projMean.toFixed(1)}</text>
           </g>
         )}
         <path d={path} fill="none" stroke="var(--blue)" strokeWidth={2} strokeLinejoin="round" />
