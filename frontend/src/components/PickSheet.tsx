@@ -9,7 +9,7 @@ export function PickSheet({ p, board, onClose, onPick, busy }: { p: P; board: Bo
   const inj = p.injury;
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center" onClick={onClose} style={{ background: "rgba(0,0,0,.35)" }}>
-      <div className="card w-full sm:max-w-md p-5 rounded-b-none sm:rounded-b-[18px]" onClick={(e) => e.stopPropagation()}>
+      <div className="card w-full sm:max-w-xl p-5 rounded-b-none sm:rounded-b-[18px]" onClick={(e) => e.stopPropagation()}>
         <div className="text-[22px] font-bold">{p.name}</div>
         <div className="text-sm muted"><span className={`font-semibold pos-${p.pos}`}>{p.pos}</span> · {p.team ?? "FA"} · ADP {fmt(p.adp, 1)} · bye {p.bye ?? "–"}</div>
         <div className="grid grid-cols-3 gap-3 mt-3">
