@@ -6,7 +6,7 @@ const tabs = [
   ["/draft", "Draft"],
   ["/dashboard", "Week"],
   ["/roster", "Roster"],
-  ["/free-agents", "FA"],
+  ["/free-agents", "Free agents"],
   ["/trades", "Trades"],
   ["/playoffs", "Playoffs"],
   ["/ideas", "Ideas"],
@@ -14,20 +14,22 @@ const tabs = [
   ["/about", "About"],
 ];
 
+/** App-level navigation: a sticky top bar. In-page sections use underlined tabs inside the page instead. */
 export function TabBar() {
   const path = usePathname();
   return (
-    <nav className="fixed bottom-0 inset-x-0 border-t line backdrop-blur" style={{ background: "color-mix(in srgb, var(--bg) 85%, transparent)" }}>
-      <div className="mx-auto max-w-5xl flex overflow-x-auto no-scrollbar">
-        {tabs.map(([href, label]) => {
-          const active = path?.startsWith(href);
-          return (
-            <Link key={href} href={href} className={`flex-1 min-w-[64px] text-center py-3 text-[12px] font-semibold ${active ? "" : "muted"}`}>
-              <span className={active ? "border-b-2 pb-1" : ""} style={active ? { borderColor: "var(--text)" } : {}}>{label}</span>
-            </Link>
-          );
-        })}
+    <header className="sticky top-0 z-40 border-b line backdrop-blur" style={{ background: "color-mix(in srgb, var(--bg) 88%, transparent)" }}>
+      <div className="mx-auto max-w-5xl px-4 h-12 flex items-center gap-4">
+        <Link href="/draft" className="font-bold text-[15px] tracking-tight shrink-0">Edge <span className="muted font-normal">· Marian Prayers</span></Link>
+        <nav className="flex items-center gap-1 overflow-x-auto ml-auto" aria-label="App sections">
+          {tabs.map(([href, label]) => {
+            const active = path?.startsWith(href) || (href === "/draft" && path?.startsWith("/player"));
+            return (
+              <Link key={href} href={href} className="px-3 py-1.5 rounded-full text-[13px] whitespace-nowrap" style={active ? { background: "var(--text)", color: "var(--bg)", fontWeight: 600 } : { color: "var(--muted)" }}>{label}</Link>
+            );
+          })}
+        </nav>
       </div>
-    </nav>
+    </header>
   );
 }
