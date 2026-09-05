@@ -86,6 +86,7 @@ class AppState:
         text = llm.rationale(self.settings, facts, names)
         if text:
             out["rationale_llm"] = text
+        out["llm"] = dict(llm.LAST)
 
     def precompute(self):
         picks = draft_state.get_picks()
@@ -169,7 +170,8 @@ def meta():
     return {
         "season": config.SEASON, "league_id": config.LEAGUE_ID, "teams": config.NUM_TEAMS, "my_slot": config.MY_SLOT,
         "rounds": config.ROUNDS, "my_picks": config.my_picks(), "sources": s.meta, "replacement": s.info,
-        "llm": {"enabled": llm.available(s.settings), "model": s.settings.openrouter_model if llm.available(s.settings) else None},
+        "llm": {"enabled": llm.available(s.settings), "model": s.settings.openrouter_model if llm.available(s.settings) else None,
+                "vision_model": s.settings.openrouter_vision_model if llm.available(s.settings) else None, "last": llm.LAST},
         "sim_count": s.settings.sim_count, "ir_plus": s.settings.ir_plus, "error": s.error,
         "roster_slots": [{"slot": n, "elig": list(e)} for n, e in config.ROSTER_SLOTS], "bench": config.BENCH_SLOTS, "ir": config.IR_SLOTS,
     }
@@ -333,6 +335,35 @@ def picks_bulk(body: BulkIn):
             errors.append(f"{bp.player_id}: {e}")
     s.executor.submit(s.precompute)
     return {"applied": applied, "errors": errors}
+
+
+def _pick_facts(out: dict) -> tuple[dict, list[str]]:
+    rec = out["recommended"]
+    facts = {
+        "league scoring": "full PPR, 6-pt passing TD, 1 pt per 25 pass yds, 1 RB slot, 2 WR, TE, W/R, W/R/T flex, 6 bench, 6 IR, 12 teams, 15 rounds",
+        "my pick now": out["decision_pick"], "my next pick": out.get("next_pick"), "round": out.get("round"),
+        "recommended": {"player": f"{rec['name']} ({rec['pos']}, {rec['team']})", "projected points": rec["pts"], "VORP": rec["vorp"], "ADP": rec["adp"],
+                        "P(gone by my next pick)": rec.get("p_gone_by_next"), "sim roster value": rec["roster_score"], "mechanism": rec["mechanism"],
+                        "injury": (rec.get("injury") or {}).get("label")},
+        "alternatives": [{"player": f"{a['name']} ({a['pos']})", "projected points": a["pts"], "VORP": a["vorp"], "ADP": a["adp"], "P(gone by my next pick)": a.get("p_gone_by_next"),
+                          "sim roster value": a["roster_score"], "value vs recommended": a["delta_vs_best"]} for a in out.get("alternatives", [])[:4]],
+        "confidence": out["confidence"], "margin over runner-up": out["margin"],
+        "position drop-off to my next pick": {sc["pos"]: sc.get("dropoff_to_next") for sc in out.get("scarcity", []) if sc["pos"] in ("QB", "RB", "WR", "TE")},
+    }
+    names = [rec["name"]] + [a["name"] for a in out.get("all_candidates", [])]
+    return facts, names
+
+
+@app.post("/api/explain-pick")
+def explain_pick():
+    s = st()
+    picks = draft_state.get_picks()
+    out = s.recommend_for(picks)
+    if out.get("done"):
+        raise HTTPException(400, "draft complete")
+    facts, names = _pick_facts(out)
+    res = llm.explain(s.settings, facts, names, "Explain why the recommended pick beats the alternatives at this pick, and the main risk.")
+    return res
 
 
 @app.get("/api/log")

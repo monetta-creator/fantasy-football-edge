@@ -22,6 +22,12 @@ export default function PlayerPage() {
   const [d, setD] = useState<Detail | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [showTable, setShowTable] = useState(false);
+  const [summary, setSummary] = useState<{ text: string | null; status: string; model?: string | null; detail?: string | null } | null>(null);
+  const [summarizing, setSummarizing] = useState(false);
+  const askSummary = async () => {
+    setSummarizing(true);
+    try { const r = await fetch(`/api/players/${encodeURIComponent(decodeURIComponent(id))}/summary`, { method: "POST" }); setSummary(await r.json()); } catch (e) { setSummary({ text: null, status: "error", detail: String(e) }); } finally { setSummarizing(false); }
+  };
   useEffect(() => { fetch(`/api/players/${encodeURIComponent(decodeURIComponent(id))}/detail`, { cache: "no-store" }).then(async (r) => { if (!r.ok) throw new Error(await r.text()); setD(await r.json()); }).catch((e) => setErr(String(e))); }, [id]);
   if (err) return <div className="text-sm" style={{ color: "var(--red)" }}>{err}</div>;
   if (!d) return <div className="muted text-sm">Loading…</div>;
@@ -46,6 +52,11 @@ export default function PlayerPage() {
           <div><div className="text-[28px] leading-none font-bold tabular">{fmt(d.vorp)}</div><div className="text-[11px] muted uppercase mt-1">VORP</div><div className="text-[11px] muted">repl {fmt(d.repl_pts)} · VOLS {fmt(d.vols)}</div></div>
         </div>
         {wk.note && <div className="text-[12px] muted mt-2">{wk.note}</div>}
+        <div className="mt-3">
+          {!summary ? <button disabled={summarizing} className="pill" onClick={askSummary}>{summarizing ? "Asking the model…" : "AI summary"}</button> : summary.text ? (
+            <div className="text-[13px] p-3 rounded-xl" style={{ background: "var(--bg)" }}><span className="text-[11px] muted uppercase tracking-wide">AI summary · {summary.model} · numbers verified against our data</span><p className="mt-1">{summary.text}</p></div>
+          ) : <div className="text-[12px] muted">AI summary unavailable ({summary.status}{summary.detail ? `: ${summary.detail}` : ""}).</div>}
+        </div>
       </div>
       <div className="card p-4">
         <div className="flex items-center justify-between mb-1"><div className="text-[12px] font-semibold uppercase tracking-wide muted">{d.history.season} weekly points (league scoring)</div><div className="text-[11px] muted">{d.history.games} games · avg {fmt(d.history.mean, 1)} · sd {fmt(d.history.sd, 1)}</div></div>

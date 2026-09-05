@@ -11,6 +11,7 @@ const tabs = [
   ["/playoffs", "Playoffs"],
   ["/ideas", "Ideas"],
   ["/settings", "Settings"],
+  ["/about", "About"],
 ];
 
 export function TabBar() {

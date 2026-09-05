@@ -132,8 +132,9 @@ def round_of(pick_no: int, teams: int = NUM_TEAMS) -> int:
 @dataclass
 class Settings:
     openrouter_api_key: str | None = None
-    openrouter_model: str = "z-ai/glm-5.3-flash"
+    openrouter_model: str = "google/gemini-3.8-flash"
     openrouter_vision_model: str = "google/gemini-3.8-flash"
+    openrouter_reasoning_effort: str = "minimal"  # "" to omit the reasoning parameter
     yahoo_client_id: str | None = None
     yahoo_client_secret: str | None = None
     sim_count: int = 200
@@ -149,8 +150,9 @@ def load_settings() -> Settings:
     load_dotenv(ROOT / ".env")
     return Settings(
         openrouter_api_key=os.getenv("OPENROUTER_API_KEY") or None,
-        openrouter_model=os.getenv("OPENROUTER_MODEL") or "z-ai/glm-5.3-flash",
+        openrouter_model=os.getenv("OPENROUTER_MODEL") or "google/gemini-3.8-flash",
         openrouter_vision_model=os.getenv("OPENROUTER_VISION_MODEL") or "google/gemini-3.8-flash",
+        openrouter_reasoning_effort=os.getenv("OPENROUTER_REASONING_EFFORT", "minimal"),
         yahoo_client_id=os.getenv("YAHOO_CLIENT_ID") or None,
         yahoo_client_secret=os.getenv("YAHOO_CLIENT_SECRET") or None,
         sim_count=int(os.getenv("SIM_COUNT", "200")),

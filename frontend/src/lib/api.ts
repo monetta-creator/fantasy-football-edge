@@ -12,7 +12,7 @@ export type Scarcity = { pos: string; best_now: { id: string; name: string; pts:
 export type Recommend = {
   done: boolean; pick_no: number; decision_pick: number; is_me: boolean; next_pick: number | null; next_pick2: number | null; round: number;
   recommended: Candidate; alternatives: Candidate[]; all_candidates: Candidate[]; confidence: "High" | "Medium" | "Low"; margin: number;
-  rationale: string; rationale_llm?: string; scarcity: Scarcity[]; n_sims: number; computed_ms: number;
+  rationale: string; rationale_llm?: string; llm?: { status: string; model?: string | null; ms?: number | null; detail?: string | null }; scarcity: Scarcity[]; n_sims: number; computed_ms: number;
   likely_available_next: (Brief & { p_available: number })[];
 };
 export type Slot = { slot: string; elig: string[]; player: Brief | null };
@@ -25,7 +25,7 @@ export type Board = {
 export type Meta = {
   season: number; league_id: number; teams: number; my_slot: number; rounds: number; my_picks: number[]; sources: Record<string, unknown> & { counts?: Record<string, number>; built_at?: string };
   replacement: { replacement_pts: Record<string, number>; replacement_rank: Record<string, number>; allocation: { starters: Record<string, number>; flex: Record<string, Record<string, number>> } };
-  llm: { enabled: boolean; model: string | null }; sim_count: number; ir_plus: boolean; error: string | null;
+  llm: { enabled: boolean; model: string | null; vision_model?: string | null; last?: { status: string; model?: string | null; ms?: number | null; detail?: string | null } }; sim_count: number; ir_plus: boolean; error: string | null;
 };
 export type StashRow = Brief & { ppg: number; stash_value: number; status: string | null; label: string | null; type: string | null; return_week: number | null; return_date: string | null; ir_eligible: boolean; comment: string | null; drafted: boolean };
 export type PickAnalysis = { pick_no: number; next_picks: number[]; n_sims: number; candidates: (Brief & { p_available: number; roster_score: number; se: number; delta: number; board_at_next: (Brief & { p_available: number })[]; best_pos_at_next: Record<string, number>; best_pos_at_next2: Record<string, number>; injury: Injury })[] };

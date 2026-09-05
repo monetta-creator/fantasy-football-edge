@@ -61,25 +61,45 @@ def _post(settings: Settings, body: dict, timeout: float) -> dict | None:
         return None
 
 
-def structured(settings: Settings, system: str, user: str, schema: dict, max_tokens: int = 200, timeout: float = 8.0) -> dict | None:
-    """Chat completion constrained to a JSON schema. Returns the parsed object or None."""
+LAST: dict = {"status": "off", "model": None, "ms": None, "detail": None}
+
+
+def _record(status: str, model: str | None, ms: float | None, detail: str | None = None) -> None:
+    LAST.update({"status": status, "model": model, "ms": None if ms is None else int(ms), "detail": detail})
+
+
+def structured(settings: Settings, system: str, user: str, schema: dict, max_tokens: int = 1200, timeout: float = 25.0, model: str | None = None) -> dict | None:
+    """Chat completion constrained to a JSON schema. Returns the parsed object or None (LAST records why)."""
     if not settings.openrouter_api_key:
+        _record("off", None, None, "no OPENROUTER_API_KEY")
         return None
+    import time as _t
+    t0 = _t.time()
+    model = model or settings.openrouter_model
     body = {
-        "model": settings.openrouter_model,
+        "model": model,
         "max_tokens": max_tokens,
         "temperature": 0.2,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         "response_format": {"type": "json_schema", "json_schema": schema},
     }
+    if settings.openrouter_reasoning_effort:
+        body["reasoning"] = {"effort": settings.openrouter_reasoning_effort}
     data = _post(settings, body, timeout)
     if data is None:
+        _record("error", model, (_t.time() - t0) * 1000, "request failed or timed out")
+        return None
+    if data.get("error"):
+        _record("error", model, (_t.time() - t0) * 1000, str(data["error"].get("message", ""))[:160])
         return None
     try:
-        txt = data["choices"][0]["message"]["content"].strip()
+        txt = (data["choices"][0]["message"].get("content") or "").strip()
         txt = re.sub(r"^```(?:json)?|```$", "", txt.strip(), flags=re.M).strip()
-        return json.loads(txt)
-    except Exception:
+        obj = json.loads(txt)
+        _record("ok", model, (_t.time() - t0) * 1000)
+        return obj
+    except Exception as e:
+        _record("error", model, (_t.time() - t0) * 1000, f"unparseable response: {e}")
         return None
 
 
@@ -92,6 +112,8 @@ def _numbers_in(text: str) -> list[float]:
 
 def _fact_numbers(facts: dict) -> set[float]:
     out: set[float] = set()
+    for n in _numbers_in(" ".join(str(k) for k in facts.keys())):  # keys like "week 1" or "2025 results" carry numbers too
+        out.add(round(n, 2)); out.add(round(n, 1)); out.add(round(n))
     for v in facts.values():
         if isinstance(v, bool) or v is None:
             continue
@@ -131,4 +153,36 @@ def rationale(settings: Settings, facts: dict, allowed_names: list[str]) -> str 
     if not obj or not isinstance(obj.get("rationale"), str):
         return None
     text = obj["rationale"].strip()
-    return text if grounded(text, facts, allowed_names) else None
+    if grounded(text, facts, allowed_names):
+        return text
+    _record("rejected", LAST.get("model"), LAST.get("ms"), "sentence used a number or name not in the fact sheet")
+    return None
+
+
+EXPLAIN_SCHEMA = {
+    "name": "explanation",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "properties": {"explanation": {"type": "string", "description": "2-4 sentences, max 90 words, uses only the given numbers and names."}},
+        "required": ["explanation"],
+        "additionalProperties": False,
+    },
+}
+EXPLAIN_SYSTEM = (
+    "You are an analyst for an expert fantasy football manager. Using ONLY the fact sheet, write 2-4 plain sentences "
+    "(max 90 words) that explain the decision or the player: what drives the value, what the risk is, and what the numbers "
+    "say relative to alternatives. Never introduce a statistic, player, or claim not in the fact sheet. No praise, no hedging. "
+    "Respond as JSON matching the schema."
+)
+
+
+def explain(settings: Settings, facts: dict, allowed_names: list[str], question: str) -> dict:
+    """Grounded multi-sentence explanation. Returns {text, status, model, ms, detail}."""
+    user = "Fact sheet (JSON):\n" + json.dumps(facts, indent=1) + "\n\nTask: " + question
+    obj = structured(settings, EXPLAIN_SYSTEM, user, EXPLAIN_SCHEMA, max_tokens=1500)
+    text = obj.get("explanation", "").strip() if isinstance(obj, dict) else ""
+    if text and not grounded(text, facts, allowed_names, max_words=110):
+        _record("rejected", LAST.get("model"), LAST.get("ms"), "explanation used a number or name not in the fact sheet")
+        text = ""
+    return {"text": text or None, **LAST}

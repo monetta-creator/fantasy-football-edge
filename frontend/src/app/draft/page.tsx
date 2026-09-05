@@ -12,9 +12,10 @@ import { BoardStrip, TeamRosters } from "@/components/BoardStrip";
 import { IRStashPanel } from "@/components/IRStash";
 import { Pick4Panel } from "@/components/Pick4";
 import { ImportBoard } from "@/components/ImportBoard";
+import { Rankings } from "@/components/Rankings";
 
 type SheetP = Brief & { ppg?: number; vols?: number; stash_value?: number; mechanism?: string; p_gone_by_next?: number | null };
-const SUBTABS = ["Board", "Roster", "Scarcity", "Stash", "Plan"] as const;
+const SUBTABS = ["Rankings", "Board", "Roster", "Scarcity", "Stash", "Plan"] as const;
 
 export default function DraftPage() {
   const [board, setBoard] = useState<Board | null>(null);
@@ -22,7 +23,8 @@ export default function DraftPage() {
   const [version, setVersion] = useState(0);
   const [sheet, setSheet] = useState<SheetP | null>(null);
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<(typeof SUBTABS)[number]>("Board");
+  const [tab, setTab] = useState<(typeof SUBTABS)[number]>("Rankings");
+  const [live, setLive] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -39,9 +41,9 @@ export default function DraftPage() {
 
   useEffect(() => {
     const t0 = setTimeout(refresh, 0);
-    const t = setInterval(refresh, 2500);
-    return () => { clearTimeout(t0); clearInterval(t); };
-  }, [refresh, version]);
+    const t = live ? setInterval(refresh, 2500) : null;
+    return () => { clearTimeout(t0); if (t) clearInterval(t); };
+  }, [refresh, version, live]);
 
   const doPick = async (id: string, team?: number) => {
     setBusy(true);
@@ -70,7 +72,11 @@ export default function DraftPage() {
           <div className="text-[22px] font-bold leading-tight">{done ? "Draft complete" : board.is_me ? "You're on the clock (draft in Yahoo, record here)" : `${board.on_clock_name} is on the clock`}</div>
           <div className="text-[13px] muted">{done ? `${board.drafted_count} picks` : `Pick ${board.pick_no} · Round ${board.round} · your next: #${board.my_next_picks.slice(0, 2).join(", #")}${board.picks_until_me ? ` (${board.picks_until_me} away)` : ""}`}</div>
         </div>
-        {!done && <PickClock pickNo={board.pick_no} />}
+        <div className="flex items-center gap-2">
+          {!done && live && <PickClock pickNo={board.pick_no} />}
+          <button className="pill" onClick={() => setLive(!live)} title="Live mode: 2-minute clock and auto-refresh">{live ? "Live" : "Tool"}</button>
+          <button className="pill" onClick={() => { setVersion((v) => v + 1); refresh(); }}>Refresh</button>
+        </div>
       </header>
       {err && <div className="text-[12px]" style={{ color: "var(--red)" }}>{err}</div>}
 
@@ -87,6 +93,9 @@ export default function DraftPage() {
         ))}
       </div>
 
+      {tab === "Rankings" && (
+        <Rankings version={version} busy={busy} onGone={(p) => doPick(p.id)} onMine={(p) => doPick(p.id, board.on_clock_team && board.is_me ? undefined : 5)} />
+      )}
       {tab === "Board" && (
         <>
           <BoardStrip board={board} onUndo={doUndo} busy={busy} />

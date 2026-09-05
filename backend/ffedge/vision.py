@@ -145,9 +145,11 @@ def resolve(extracted: dict, players: list[Player], drafted_ids: set[str], team_
         status, chosen, conf = "unknown", None, 0.0
         if cands:
             chosen, conf = cands[0]
+            team_hint = (cell.get("nfl_team") or "").upper()
+            team_breaks_tie = bool(team_hint) and chosen.team == team_hint and (len(cands) == 1 or cands[1][0].team != team_hint)
             if chosen.id in drafted_ids:
                 status = "already_drafted"
-            elif conf >= 0.85 and (len(cands) == 1 or cands[1][1] < conf - 0.08):
+            elif conf >= 0.85 and (len(cands) == 1 or cands[1][1] < conf - 0.08 or team_breaks_tie):
                 status = "ok"
             else:
                 status = "ambiguous"
@@ -246,7 +248,9 @@ def resolve_page(extracted: dict, players: list[Player], team_names: dict[int, s
         status, chosen, conf = "unknown", None, 0.0
         if cands:
             chosen, conf = cands[0]
-            status = "ok" if conf >= 0.85 and (len(cands) == 1 or cands[1][1] < conf - 0.08) else "ambiguous"
+            team_hint = (cell.get("nfl_team") or "").upper()
+            team_breaks_tie = bool(team_hint) and chosen.team == team_hint and (len(cands) == 1 or cands[1][0].team != team_hint)
+            status = "ok" if conf >= 0.85 and (len(cands) == 1 or cands[1][1] < conf - 0.08 or team_breaks_tie) else "ambiguous"
         ft = cell.get("fantasy_team") or page_team
         team = None
         if ft:

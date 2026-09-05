@@ -22,6 +22,8 @@ Tests: `cd backend && .venv/bin/python -m pytest -q` (scoring rescaler, VORP, AD
 
 ## Draft-day walkthrough
 
+The Draft screen works as a tool: nothing polls or counts down unless you toggle **Live**. The **Rankings** tab is the cheat sheet (VORP tiers, ADP, gone-by probability); tap **Gone** as players come off the board and **Mine** for your own picks, and the recommendation card recomputes. **About** (last tab) explains every number.
+
 1. **Before the draft**: team names are preloaded from `data/league.json` (you are slot 5, "Show Me Your TDs"); Settings lets you edit them. Tap **Refresh projections** so the data is from the last hour. Open Draft → **Plan** tab to see the pick-5 comparison and what the board looks like at #20 / #29 for each choice.
 2. **As picks happen** (you draft in the Yahoo app; this is the monitor): the header shows who is on the clock. Tap the drafted player in the list (search box or position filter), then tap **"[Team] took him"**. The next team is now on the clock. Mistake? **Undo last**.
    Faster: with `OPENROUTER_API_KEY` set, tap **Photo / screenshot** on the Board tab, take a screenshot of the Yahoo board, and confirm the transcribed picks; they are applied in order.
@@ -52,7 +54,7 @@ Weekly projections: Sleeper weekly raw stats scored with league rules, DST point
 - **Replacement level**: expected best player left undrafted after 180 picks, per position, plus a streaming uplift for K/DEF. VORP = points − replacement. The league-wide lineup allocation (empirical flex shares) is shown in Settings.
 - **Recommendation**: for each candidate, simulate the rest of the draft (opponents pick by noisy ADP with roster caps; my later picks follow need-weighted VORP) and score my final roster. Highest expected roster value wins; confidence reflects the margin over the runner-up versus simulation noise.
 - **IR stash**: weighted surplus over replacement from expected return week (ESPN injuries feed) through week 17, playoff weeks weighted 1.5×, discounted by designation risk.
-- **LLM (optional)**: OpenRouter open-source model rewrites the rationale sentence from a fact sheet under a strict JSON schema; any output with a number not in the facts is discarded. Numbers never come from the model.
+- **LLM (optional)**: OpenRouter model (default Gemini 3.8 Flash, ~3 s per call) rewrites the rationale sentence, writes "Explain this pick" and per-player "AI summary" text, and transcribes screenshots, always from a fact sheet under a strict JSON schema; any output with a number or name not in the facts is discarded and the UI says so. Numbers never come from the model.
 
 ## Layout
 

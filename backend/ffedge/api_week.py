@@ -416,3 +416,35 @@ def player_detail(player_id: str):
         "week": ({"week": wk, **r.to_dict(), "stats": {k: round(v, 2) for k, v in r.stats.items()}} if r else {"week": wk}),
         "history": {"season": config.SEASON - 1, "games": hist.get("games", 0), "mean": hist.get("mean"), "sd": hist.get("sd"), "weeks": hist.get("weeks", [])},
     }
+
+
+@router.post("/api/players/{player_id}/summary")
+def player_summary(player_id: str):
+    """Grounded 2-4 sentence summary of a player from our numbers (LLM rephrases; never computes)."""
+    s = _st()
+    p = s.by_id.get(player_id)
+    if not p:
+        raise HTTPException(404, "unknown player")
+    wk, rows, _ = week_rows()
+    r = rows.get(player_id)
+    hist = variance.history(player_id, _variance()) or {}
+    weeks = hist.get("weeks", [])
+    top = sorted(weeks, key=lambda w: -w["pts"])[:3]
+    facts = {
+        "player": f"{p.name} ({p.pos}, {p.team})", "bye week": p.bye, "consensus ADP": p.adp, "Yahoo rank": p.yahoo_rank,
+        "2026 season projection (league scoring)": p.pts, "projected games": p.games, "projected points per game": p.ppg,
+        "VORP vs waiver replacement": p.vorp, "replacement level at position": p.__dict__.get("repl_pts"),
+        "projection by source": p.proj_sources, "source spread": p.proj_spread,
+        "key projected stats": {k: round(v, 1) for k, v in p.stats.items() if k in ("pass_yd", "pass_td", "pass_int", "rush_yd", "rush_td", "rec", "rec_yd", "rec_td", "fg_50p", "xp_made", "dst_sack", "dst_int")},
+        f"week {wk} projection": ({"mean": round(r.mean, 1), "floor": round(max(0, r.mean - 1.28 * r.sd), 1), "ceiling": round(r.mean + 1.28 * r.sd, 1), "opponent": r.opp, "on bye": r.on_bye} if r else None),
+        "2025 results (league scoring)": {"games": hist.get("games"), "avg points": hist.get("mean"), "sd": hist.get("sd"), "best weeks": [{"week": w["week"], "opp": w["opp"], "pts": w["pts"]} for w in top]},
+        "injury": {"status": p.injury.get("label"), "type": p.injury.get("type"), "expected return week": p.injury.get("return_week"), "IR-eligible": p.injury.get("ir_eligible")} if p.injury.get("flag") else "none listed",
+        "IR stash value": p.__dict__.get("stash_value"),
+        "beat-writer note": (p.injury.get("comment") or p.outlook or "")[:500],
+    }
+    from .sources.common import TEAM_NAMES, CITY_TO_ABBR
+    allowed = [p.name, p.team or ""] + [n for n, a in [(v, k) for k, v in TEAM_NAMES.items()] if a == p.team] + [c.title() for c, a in CITY_TO_ABBR.items() if a == p.team]
+    if r and r.opp:
+        allowed += [r.opp, TEAM_NAMES.get(r.opp, "")]
+    res = llm.explain(s.settings, facts, [a for a in allowed if a], "Summarize this player for a draft or start/sit decision in this league's scoring.")
+    return res
