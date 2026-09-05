@@ -3,6 +3,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Rec, Week, WeekPlayer, api1, fmt, pct } from "@/lib/api";
 import { RecList } from "@/components/RecList";
+import { MarketCheck } from "@/components/MarketCheck";
+import { Info } from "@/components/Info";
+import { AiNote } from "@/components/AiNote";
 
 const SLOT_KEYS = ["QB", "WR1", "WR2", "RB", "TE", "W/R", "W/R/T", "K", "DEF"];
 
@@ -22,7 +25,9 @@ export default function Dashboard() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [pulling, setPulling] = useState(false);
   const load = useCallback(() => api1.week().then((x) => { setW(x); setErr(null); }).catch((e) => setErr(String(e))), []);
+  const pullProps = async () => { setPulling(true); try { const r = await fetch("/api/odds/refresh", { method: "POST" }); const d = await r.json(); setMsg(r.ok ? `Props pulled: ${d.props_blended} players blended · ${d.odds?.credits_remaining ?? "?"} credits left.` : `Props: ${d.detail ?? "error"}`); await load(); } catch (e) { setMsg(String(e)); } finally { setPulling(false); } };
   useEffect(() => { const t = setTimeout(load, 0); return () => clearTimeout(t); }, [load]);
   const act = async (r: Rec) => {
     setBusy(true);
@@ -51,13 +56,16 @@ export default function Dashboard() {
         <div className="text-[13px] muted">{w.my_team} · {w.optimized!.posture} · {w.optimized!.n_candidates} lineups simulated</div>
       </header>
       <div className="card p-5 border-l-4" style={{ borderLeftColor: wp >= 0.55 ? "var(--green)" : wp >= 0.45 ? "var(--amber)" : "var(--red)" }}>
-        <div className="text-[12px] font-semibold uppercase tracking-wide muted">Win probability (current lineup)</div>
+        <div className="text-[12px] font-semibold uppercase tracking-wide muted flex items-center gap-2">Win probability (current lineup)
+          <Info title="How this is computed">20,000 simulated games. Each NFL game&apos;s score is drawn from its Vegas line, every player scales with his team&apos;s simulated score plus his own week-to-week noise (from 2025 results), and your lineup total is compared with your opponent&apos;s projected lineup. Above 55% is green, below 45% red.</Info>
+        </div>
         <div className="grid grid-cols-3 gap-3 items-end mt-2">
           <div><div className="text-[56px] leading-none font-bold tabular">{Math.round(wp * 100)}<span className="text-[24px]">%</span></div><div className="text-[11px] muted uppercase mt-1">vs {w.opponent.name}</div></div>
           <div><div className="text-[28px] leading-none font-bold tabular">{fmt(cur.mean, 1)}</div><div className="text-[11px] muted uppercase mt-1">my proj · {fmt(cur.p10, 0)}–{fmt(cur.p90, 0)}</div></div>
           <div><div className="text-[28px] leading-none font-bold tabular">{fmt(cur.opp_mean, 1)}</div><div className="text-[11px] muted uppercase mt-1">opp proj</div></div>
         </div>
         {ev.win_prob > wp + 0.005 && <div className="text-[13px] mt-3">Optimized lineup: <b>{pct(ev.win_prob)}</b> ({fmt(ev.mean, 1)} proj). See the card below.</div>}
+        <div className="mt-2"><AiNote topic="matchup" label="✨ Explain my matchup" /></div>
       </div>
       {msg && <div className="text-[13px] card p-3">{msg}</div>}
       <RecList recs={w.recommendations ?? []} onAction={act} busy={busy} />
@@ -70,6 +78,7 @@ export default function Dashboard() {
         {(w.opponent.lineup ?? []).map((p, i) => <Row key={i} p={p} slot={p.slot ?? p.pos} />)}
         {!(w.opponent.lineup ?? []).length && <div className="text-sm muted">Opponent roster unknown. Seed from the draft board or import their roster screenshot.</div>}
       </div>
+      {w.market && <MarketCheck m={w.market} week={w.week} onRefresh={pullProps} refreshing={pulling} />}
       <Streaming w={w} />
     </div>
   );

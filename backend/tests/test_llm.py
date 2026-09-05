@@ -20,3 +20,8 @@ def test_grounded_rejects_foreign_player_and_length():
 def test_grounded_tolerates_verb_before_name_but_not_invented_player():
     assert grounded("Draft Puka Nacua: 336 pts.", FACTS, ["Puka Nacua"])
     assert not grounded("Draft Puka Nacua over Random Guy: 336 pts.", FACTS, ["Puka Nacua"])
+
+
+def test_grounded_allows_sources_cities_and_percentiles():
+    facts = {"my 10th-90th percentile": [8.0, 32.4], "win probability": 0.509, "team": "New England"}
+    assert grounded("The Kalshi market and Vegas agree; New England sits at the 90th percentile, 50.9% to win.", facts, [])

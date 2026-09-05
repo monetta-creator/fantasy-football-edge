@@ -6,11 +6,11 @@ import time
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from . import config, draft_state, lineup, llm, rosters, streaming, variance, vision, weekly
+from . import config, draft_state, gamesim, kalshi, lineup, llm, odds, rosters, streaming, variance, vision, weekly
 from .sync import yahoo
 
 router = APIRouter()
-_STATE = {"week_cache": {}, "variance": None}
+_STATE = {"week_cache": {}, "variance": None, "odds_meta": {}, "kalshi_meta": {}}
 
 
 def _st():
@@ -31,8 +31,55 @@ def week_rows(week: int | None = None, force: bool = False) -> tuple[int, dict, 
     if cached and not force and time.time() - cached["at"] < 3 * 3600 and cached["pool_built"] == s.meta.get("built_at"):
         return wk, cached["rows"], cached["meta"]
     rows, meta = weekly.build_week(wk, s.players, _variance(), force=force)
+    meta["market"] = _attach_markets(wk, rows, force=False)
     _STATE["week_cache"][wk] = {"rows": rows, "meta": meta, "at": time.time(), "pool_built": s.meta.get("built_at")}
     return wk, rows, meta
+
+
+MARKET: dict[str, dict] = {}  # player_id -> market summary for the cached week
+
+
+def _attach_markets(wk: int, rows: dict, force: bool = False) -> dict:
+    """Blend sportsbook props (if pulled) into weekly means and attach Kalshi data. Returns market meta."""
+    s = _st()
+    MARKET.clear()
+    props, ometa = odds.fetch_week(s.settings, wk, force=force)  # never spends credits unless force=True
+    _STATE["odds_meta"] = {**ometa, "players_with_props": len(props.get("players", {})), "events": len(props.get("events", []))}
+    try:
+        ksnap, kmeta = kalshi.load()
+    except Exception as e:
+        ksnap, kmeta = {"games": {}, "players": {}}, {"error": str(e)}
+    _STATE["kalshi_meta"] = {**kmeta, "games": len(ksnap.get("games", {})), "priced_games": sum(1 for g in ksnap.get("games", {}).values() if g.get("p_home") or g.get("total")), "players": len(ksnap.get("players", {}))}
+    by_name = {}
+    for pid, r in rows.items():
+        by_name.setdefault(r.name.lower().replace("'", "").replace(".", "").replace(" ", ""), []).append(pid)
+    blended = 0
+    for key, pl in (props.get("players") or {}).items():
+        cands = by_name.get(key) or []
+        if not cands:
+            continue
+        mk = pl.get("markets") or {}
+        # position disambiguation by market type
+        pid = cands[0]
+        if len(cands) > 1:
+            want = "QB" if "player_pass_yds" in mk else None
+            pid = next((c for c in cands if want and rows[c].pos == want), cands[0])
+        r = rows[pid]
+        if r.on_bye or r.pos in ("K", "DEF"):
+            continue
+        new_mean, summary = odds.blend(r.stats, r.mean, r.pos, mk, weight=0.5)
+        if summary.get("available"):
+            summary["books"] = pl.get("books")
+            r.mean = round(new_mean, 2)
+            r.note = (r.note + "; " if r.note else "") + "props blended 50/50"
+            MARKET[pid] = summary
+            blended += 1
+    kplayers = ksnap.get("players", {})
+    for pid, r in rows.items():
+        kp = kplayers.get(pid.split(":", 1)[1]) if ":" in pid else None
+        if kp:
+            MARKET.setdefault(pid, {"available": False})["kalshi"] = {k: v for k, v in kp.items() if k != "name"}
+    return {"props_blended": blended, "odds": _STATE["odds_meta"], "kalshi": _STATE["kalshi_meta"], "kalshi_games": ksnap.get("games", {})}
 
 
 def _brief(pid: str, rows: dict, slot: str | None = None) -> dict:
@@ -147,18 +194,71 @@ def week(week_no: int | None = None):
     if not my_players:
         return {"week": wk, "empty": True, "opponent": {"slot": opp_slot, "name": config.MY_SCHEDULE.get(wk)}, "streaming": stream,
                 "message": "No roster yet. Seed it from the draft board (Roster tab) or import a roster screenshot."}
-    opt = lineup.optimize(my_players, opp_lineup)
-    cur_eval = lineup.evaluate(cur_lineup, opp_lineup)
+    lines = weekly.vegas(wk)
+    sim = gamesim.GameSim(rows, lines, n=20000, seed=3)
+    ids = [p["id"] for p in my_players] + [p["id"] for p in opp_players] + [p["id"] for p in opp_lineup]
+    draws = sim.draws(ids)
+    opt = lineup.optimize(my_players, opp_lineup, draws=draws)
+    cur_eval = lineup.evaluate(cur_lineup, opp_lineup, draws=draws)
     recs = _recommendations(wk, rows, opt, cur_eval, my_players, cur_lineup, stream, slots_set)
+    market = _market_section(wk, rows, meta, sim, list(opt["lineup"].values()), opp_lineup)
     return {
         "week": wk, "empty": False, "my_team": config.MY_TEAM_NAME,
         "opponent": {"slot": opp_slot, "name": config.MY_SCHEDULE.get(wk), "lineup": [_brief(p["id"], rows, p.get("slot")) for p in opp_lineup], "eval": {"mean": cur_eval["opp_mean"], "sd": cur_eval["opp_sd"]}},
         "current": {"lineup": [_brief(p["id"], rows, p.get("slot")) for p in cur_lineup], "eval": cur_eval},
-        "optimized": {"lineup": {slot: _brief(p["id"], rows, lineup.KEY_TO_SLOT.get(slot, slot)) for slot, p in opt["lineup"].items()}, "slot_keys": lineup.SLOT_KEYS, "eval": opt["eval"], "posture": opt["posture"], "n_candidates": opt["n_candidates"],
+        "optimized": {"lineup": {slot: _brief(p["id"], rows, lineup.KEY_TO_SLOT.get(slot, slot)) for slot, p in opt["lineup"].items()}, "slot_keys": lineup.SLOT_KEYS, "correlated": opt.get("correlated"), "eval": opt["eval"], "posture": opt["posture"], "n_candidates": opt["n_candidates"],
                       "mean_eval": opt["mean_eval"]},
         "roster": [_brief(r["player_id"], rows, r["slot"]) for r in rosters.roster(my)],
-        "recommendations": recs, "streaming": stream, "meta": {"projections": meta, "sources": "Sleeper weekly (Rotowire) + nflverse Vegas lines + 2025 variance"},
+        "recommendations": recs, "streaming": stream, "market": market,
+        "meta": {"projections": {k: v for k, v in meta.items() if k not in ("consistency", "market")}, "sources": "Sleeper weekly (Rotowire) + nflverse Vegas lines + sportsbook props + Kalshi + 2025 variance", "correlated": True},
     }
+
+
+def _market_section(wk: int, rows: dict, meta: dict, sim, my_lineup: list[dict], opp_lineup: list[dict]) -> dict:
+    """Everything market-related for the dashboard: consistency table, props vs model, correlations, Kalshi."""
+    cons = meta.get("consistency", [])
+    my_ids = [p["id"] for p in my_lineup]
+    starters = []
+    for pid in my_ids:
+        r = rows.get(pid)
+        m = MARKET.get(pid) or {}
+        starters.append({"id": pid, "name": r.name if r else pid, "pos": r.pos if r else "?", "team": r.team if r else None, "opp": r.opp if r else None,
+                         "model_mean": round(r.mean, 1) if r else None, "market_points": m.get("points"), "delta": m.get("delta_market_vs_model"), "covered": m.get("covered"),
+                         "vegas_factor": ((r.vegas or {}).get("factor") if r else None), "kalshi": m.get("kalshi"), "sim": sim.summary(pid) if r else None})
+    # strongest correlations inside my lineup
+    pairs = []
+    for i in range(len(my_ids)):
+        for j in range(i + 1, len(my_ids)):
+            c = sim.correlation(my_ids[i], my_ids[j])
+            if abs(c) >= 0.12:
+                pairs.append({"a": rows[my_ids[i]].name, "b": rows[my_ids[j]].name, "corr": round(c, 2)})
+    pairs.sort(key=lambda x: -abs(x["corr"]))
+    # opposing correlation: my players vs opponent's
+    cross = []
+    for a in my_ids:
+        for b in [p["id"] for p in opp_lineup]:
+            c = sim.correlation(a, b)
+            if abs(c) >= 0.15:
+                cross.append({"mine": rows[a].name, "theirs": rows[b].name, "corr": round(c, 2)})
+    cross.sort(key=lambda x: -abs(x["corr"]))
+    kg = (meta.get("market") or {}).get("kalshi_games") or {}
+    my_teams = {rows[pid].team for pid in my_ids if rows.get(pid)}
+    from datetime import date, timedelta
+    w_start = date.fromisoformat(config.WEEK1_TUESDAY) + timedelta(days=7 * (wk - 1))
+    w_end = w_start + timedelta(days=7)
+    kal = []
+    for key, g in kg.items():
+        d = g.get("date")
+        in_week = True
+        if d:
+            try:
+                in_week = w_start <= date.fromisoformat(d) < w_end
+            except ValueError:
+                in_week = True
+        if in_week and (g.get("home") in my_teams or g.get("away") in my_teams):
+            kal.append({"game": key, **{k: v for k, v in g.items() if k in ("p_home", "p_away", "total", "spread", "team_total", "date")}})
+    return {"consistency": cons, "flagged": [c for c in cons if c["flag"] != "ok"], "starters": starters, "correlations": pairs[:8], "cross_correlations": cross[:6],
+            "kalshi_games": kal, "odds": _STATE.get("odds_meta"), "kalshi": _STATE.get("kalshi_meta"), "props_blended": (meta.get("market") or {}).get("props_blended", 0)}
 
 
 class SeedIn(BaseModel):
@@ -410,6 +510,7 @@ def player_detail(player_id: str):
     from . import player_stats
     weeks = hist.get("weeks", [])
     return {
+        "market": MARKET.get(player_id) or {"available": False}, "team_consistency": next((c for c in (_STATE["week_cache"].get(wk, {}).get("meta", {}).get("consistency") or []) if c["team"] == p.team), None),
         "rates_2025": player_stats.rates_2025(p.pos, weeks), "consistency": player_stats.consistency(p.pos, weeks), "ranks": player_stats.position_ranks(p, s.players, _variance()),
         "id": p.id, "name": p.name, "pos": p.pos, "team": p.team, "bye": p.bye, "injury": p.injury, "adp": p.adp, "adp_sigma": p.adp_sigma,
         "adp_sources": p.adp_sources, "yahoo_rank": p.yahoo_rank, "proj_sources": p.proj_sources, "proj_spread": p.proj_spread,
@@ -451,3 +552,78 @@ def player_summary(player_id: str):
         allowed += [r.opp, TEAM_NAMES.get(r.opp, "")]
     res = llm.explain(s.settings, facts, [a for a in allowed if a], "Summarize this player for a draft or start/sit decision in this league's scoring.")
     return res
+
+
+@router.post("/api/odds/refresh")
+def odds_refresh():
+    """Pull this week's props (about 6 credits per game) and rebuild the week."""
+    s = _st()
+    if not odds.available(s.settings):
+        raise HTTPException(400, "ODDS_API_KEY not set")
+    wk = weekly.current_week()
+    _STATE["week_cache"].pop(wk, None)
+    rows, meta = weekly.build_week(wk, s.players, _variance(), force=False)
+    meta["market"] = _attach_markets(wk, rows, force=True)
+    _STATE["week_cache"][wk] = {"rows": rows, "meta": meta, "at": time.time(), "pool_built": s.meta.get("built_at")}
+    return {"week": wk, "odds": _STATE["odds_meta"], "props_blended": meta["market"]["props_blended"]}
+
+
+@router.get("/api/market/status")
+def market_status():
+    wk, rows, meta = week_rows()
+    return {"week": wk, "odds": _STATE.get("odds_meta"), "kalshi": _STATE.get("kalshi_meta"), "props_blended": (meta.get("market") or {}).get("props_blended", 0), "odds_configured": odds.available(_st().settings)}
+
+
+class ExplainIn(BaseModel):
+    topic: str
+    id: str | None = None
+
+
+@router.post("/api/explain")
+def explain(body: ExplainIn):
+    """Generic grounded explanation: the server builds the fact sheet for the topic; the model only rephrases."""
+    s = _st()
+    wk, rows, meta = week_rows()
+    from .sources.common import TEAM_NAMES
+    names = list(TEAM_NAMES.values()) + list(TEAM_NAMES.keys())
+    t = body.topic
+    if t == "consistency":
+        cons = meta.get("consistency", [])
+        facts = {"week": wk, "what": "Vegas implied team totals vs points implied by our player projections; factor = (implied/projected)^0.5 clipped to 0.85-1.15 and applied to skill players",
+                 "flagged teams": [c for c in cons if c["flag"] != "ok"][:8], "most aligned": [c for c in cons if c["flag"] == "ok"][:3]}
+        q = "Explain what the consistency table says this week, which teams' projections were pulled up or down and why that matters for lineups."
+    elif t == "market_week":
+        m = _market_section(wk, rows, meta, gamesim.GameSim(rows, weekly.vegas(wk), n=4000, seed=3), [{"id": r["player_id"]} for r in rosters.roster(config.MY_SLOT) if r["slot"] in lineup.SLOT_NAMES], [])
+        facts = {"week": wk, "props blended into projections": m["props_blended"], "starters (model mean, market points, delta)": [{k: v for k, v in x.items() if k in ("name", "pos", "model_mean", "market_points", "delta", "vegas_factor")} for x in m["starters"]],
+                 "correlations inside my lineup": m["correlations"], "kalshi games for my players": m["kalshi_games"][:6]}
+        names += [x["name"] for x in m["starters"]]
+        q = "Explain what the market check shows about my lineup this week: where the market and model disagree, what the Vegas scaling did, and what the correlations mean for floor and ceiling."
+    elif t == "player_market" and body.id:
+        p = s.by_id.get(body.id)
+        if not p:
+            raise HTTPException(404, "unknown player")
+        r = rows.get(body.id)
+        m = MARKET.get(body.id) or {"available": False}
+        facts = {"player": f"{p.name} ({p.pos}, {p.team})", "week": wk, "model weekly mean": round(r.mean, 1) if r else None, "floor": round(max(0, r.mean - 1.28 * r.sd), 1) if r else None, "ceiling": round(r.mean + 1.28 * r.sd, 1) if r else None,
+                 "opponent": r.opp if r else None, "vegas": r.vegas if r else None, "sportsbook props": m.get("lines"), "market-implied points": m.get("points"), "market minus model": m.get("delta_market_vs_model"),
+                 "components covered by props": m.get("covered"), "kalshi": m.get("kalshi"), "note": r.note if r else None}
+        names += [p.name]
+        q = "Explain what the market says about this player this week versus our projection, and what the gap suggests."
+    elif t == "matchup":
+        w = week()
+        if w.get("empty"):
+            raise HTTPException(400, "no roster")
+        facts = {"week": wk, "opponent": w["opponent"]["name"], "win probability current lineup": round(w["current"]["eval"]["win_prob"], 3), "my projected mean": round(w["current"]["eval"]["mean"], 1), "my 10th-90th percentile": [round(w["current"]["eval"]["p10"], 1), round(w["current"]["eval"]["p90"], 1)],
+                 "opponent projected mean": round(w["current"]["eval"]["opp_mean"], 1), "optimized win probability": round(w["optimized"]["eval"]["win_prob"], 3), "posture": w["optimized"]["posture"], "simulation": "20,000 correlated game simulations (team scores from Vegas lines, players scale with their team's score)",
+                 "recommendations": [x["headline"] for x in w["recommendations"]], "correlations in my lineup": w["market"]["correlations"][:5]}
+        names += [x["name"] for x in w["current"]["lineup"]] + [w["opponent"]["name"] or ""]
+        q = "Explain my matchup this week: the win probability, what drives it, and what the correlated simulation implies about floor and ceiling."
+    elif t == "kalshi":
+        km = _STATE.get("kalshi_meta") or {}
+        facts = {"source": "Kalshi prediction market (public data)", "games listed": km.get("games"), "priced games": km.get("priced_games"), "players with markets": km.get("players"),
+                 "games for my players": (_market_section(wk, rows, meta, gamesim.GameSim(rows, weekly.vegas(wk), n=2000, seed=3), [{"id": r["player_id"]} for r in rosters.roster(config.MY_SLOT)], []))["kalshi_games"][:8],
+                 "how to read": "p_home/p_away = market probability of winning; total/spread/team_total = implied medians from the price ladders"}
+        q = "Explain what the prediction-market data shows for my players' games this week and how it compares to a sportsbook line."
+    else:
+        raise HTTPException(400, f"unknown topic {t}")
+    return llm.explain(s.settings, facts, [n for n in names if n], q)

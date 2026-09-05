@@ -155,6 +155,9 @@ def build_week(week: int, players: list[Player], variance_table: dict, force: bo
         mean = score(st)
         sd = weekly_sd(p.id, p.pos, mean, variance_table)
         out[p.id] = WeekRow(p.id, p.name, p.pos, p.team, r.get("opp") or v.get("opp"), mean, sd, False, st, v, note)
+    # Vegas consistency: scale skill players toward implied team totals; keep the table for the dashboard
+    from .market import apply_vegas_scaling
+    meta["consistency"] = apply_vegas_scaling(out, lines)
     meta["week"] = week
     meta["vegas_games"] = len(lines) // 2
     return out, meta

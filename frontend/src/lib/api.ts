@@ -25,7 +25,7 @@ export type Board = {
 export type Meta = {
   season: number; league_id: number; teams: number; my_slot: number; rounds: number; my_picks: number[]; sources: Record<string, unknown> & { counts?: Record<string, number>; built_at?: string };
   replacement: { replacement_pts: Record<string, number>; replacement_rank: Record<string, number>; allocation: { starters: Record<string, number>; flex: Record<string, Record<string, number>> } };
-  llm: { enabled: boolean; model: string | null; vision_model?: string | null; last?: { status: string; model?: string | null; ms?: number | null; detail?: string | null } }; sim_count: number; ir_plus: boolean; error: string | null;
+  llm: { enabled: boolean; model: string | null; vision_model?: string | null; last?: { status: string; model?: string | null; ms?: number | null; detail?: string | null } }; sim_count: number; ir_plus: boolean; error: string | null; odds_configured?: boolean;
 };
 export type StashRow = Brief & { ppg: number; stash_value: number; status: string | null; label: string | null; type: string | null; return_week: number | null; return_date: string | null; ir_eligible: boolean; comment: string | null; drafted: boolean };
 export type PickAnalysis = { pick_no: number; next_picks: number[]; n_sims: number; candidates: (Brief & { p_available: number; roster_score: number; se: number; delta: number; board_at_next: (Brief & { p_available: number })[]; best_pos_at_next: Record<string, number>; best_pos_at_next2: Record<string, number>; injury: Injury })[] };
@@ -63,7 +63,7 @@ export type Week = {
   opponent: { slot: number | null; name: string | null; lineup?: WeekPlayer[]; eval?: { mean: number; sd: number } };
   current?: { lineup: WeekPlayer[]; eval: Eval };
   optimized?: { lineup: Record<string, WeekPlayer>; eval: Eval; posture: string; n_candidates: number; mean_eval: Eval };
-  roster?: WeekPlayer[]; recommendations?: Rec[]; streaming: { K: StreamRow[]; DEF: StreamRow[] };
+  roster?: WeekPlayer[]; recommendations?: Rec[]; streaming: { K: StreamRow[]; DEF: StreamRow[] }; market?: import("@/components/MarketCheck").Market;
 };
 export type PageRow = { text: string; position: string | null; nfl_team: string | null; status_code: string | null; fantasy_team: string | null; team: number | null; slot: string | null; action: string | null; date: string | null; status: "ok" | "ambiguous" | "unknown"; confidence: number; player_id: string | null; player_name: string | null; candidates: { id: string; name: string; pos: string; team: string | null; confidence: number }[] };
 

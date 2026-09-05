@@ -35,6 +35,7 @@ export default function SettingsPage() {
             {Object.entries(src).filter(([k]) => ["sleeper", "espn", "yahoo", "injuries", "schedule"].includes(k)).map(([k, v]) => (
               <div key={k} className="flex items-center gap-2"><span className="dot" style={{ background: v?.error ? "var(--red)" : "var(--green)" }} /><span className="w-20 capitalize">{k}</span><span className="muted">fetched {v?.age_s != null ? `${Math.round(v.age_s / 60)} min ago` : "?"}{v?.error ? ` · ${v.error}` : ""}</span></div>
             ))}
+            <div className="muted text-[12px] mt-1">Sportsbook props: {meta.odds_configured ? "The Odds API key set (pull from the Week tab, ~6 credits per game, 500/month free)" : "no ODDS_API_KEY in .env"} · Kalshi: public, no key.</div>
             <div className="muted text-[12px] mt-1">Pool {meta.sources.counts?.pool} players · built {meta.sources.built_at} · {meta.sim_count} sims/candidate · LLM {meta.llm.enabled ? `${meta.llm.model} (vision ${meta.llm.vision_model})` : "off (deterministic rationale)"}{meta.llm.last?.status && meta.llm.last.status !== "off" ? ` · last call ${meta.llm.last.status}${meta.llm.last.ms ? ` in ${meta.llm.last.ms} ms` : ""}${meta.llm.last.detail ? `: ${meta.llm.last.detail}` : ""}` : ""}{meta.error ? ` · ${meta.error}` : ""}</div>
           </div>
         ) : <div className="muted text-sm">Loading…</div>}

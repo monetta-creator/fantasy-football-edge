@@ -135,6 +135,7 @@ class Settings:
     openrouter_model: str = "google/gemini-3.8-flash"
     openrouter_vision_model: str = "google/gemini-3.8-flash"
     openrouter_reasoning_effort: str = "minimal"  # "" to omit the reasoning parameter
+    odds_api_key: str | None = None
     yahoo_client_id: str | None = None
     yahoo_client_secret: str | None = None
     sim_count: int = 200
@@ -153,6 +154,7 @@ def load_settings() -> Settings:
         openrouter_model=os.getenv("OPENROUTER_MODEL") or "google/gemini-3.8-flash",
         openrouter_vision_model=os.getenv("OPENROUTER_VISION_MODEL") or "google/gemini-3.8-flash",
         openrouter_reasoning_effort=os.getenv("OPENROUTER_REASONING_EFFORT", "minimal"),
+        odds_api_key=os.getenv("ODDS_API_KEY") or None,
         yahoo_client_id=os.getenv("YAHOO_CLIENT_ID") or None,
         yahoo_client_secret=os.getenv("YAHOO_CLIENT_SECRET") or None,
         sim_count=int(os.getenv("SIM_COUNT", "200")),

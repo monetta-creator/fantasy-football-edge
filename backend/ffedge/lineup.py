@@ -50,10 +50,22 @@ def simulate_totals(lineup: list[dict], n: int, rng: np.random.Generator) -> np.
     return np.clip(draws, -3.0, None).sum(axis=1)
 
 
-def evaluate(my_lineup: list[dict], opp_lineup: list[dict], n: int = 20000, seed: int = 3) -> dict:
+def _totals(lineup: list[dict], n: int, rng: np.random.Generator, draws: dict | None) -> np.ndarray:
+    if draws is None:
+        return simulate_totals(lineup, n, rng)
+    tot = np.zeros(n)
+    for p in lineup:
+        d = draws.get(p["id"])
+        if d is None:
+            d = np.clip(rng.standard_normal(n) * max(p["sd"], 0.5) + p["mean"], -3.0, None)
+        tot += d[:n]
+    return tot
+
+
+def evaluate(my_lineup: list[dict], opp_lineup: list[dict], n: int = 20000, seed: int = 3, draws: dict | None = None) -> dict:
     rng = np.random.default_rng(seed)
-    mine = simulate_totals(my_lineup, n, rng)
-    opp = simulate_totals(opp_lineup, n, rng)
+    mine = _totals(my_lineup, n, rng, draws)
+    opp = _totals(opp_lineup, n, rng, draws)
     return {
         "win_prob": float((mine > opp).mean()), "mean": float(mine.mean()), "sd": float(mine.std()),
         "p10": float(np.percentile(mine, 10)), "p90": float(np.percentile(mine, 90)),
@@ -87,12 +99,12 @@ def candidate_lineups(players: list[dict], max_alternates: int = 5) -> list[dict
     return out
 
 
-def optimize(players: list[dict], opp_lineup: list[dict], n: int = 20000) -> dict:
+def optimize(players: list[dict], opp_lineup: list[dict], n: int = 20000, draws: dict | None = None) -> dict:
     """Return the max-win-probability lineup among candidates, with the mean-optimal for comparison."""
     cands = candidate_lineups(players)
     scored = []
     for lu in cands:
-        ev = evaluate(list(lu.values()), opp_lineup, n)
+        ev = evaluate(list(lu.values()), opp_lineup, n, draws=draws)
         scored.append((ev, lu))
     scored.sort(key=lambda x: -x[0]["win_prob"])
     best_ev, best = scored[0]
@@ -106,5 +118,5 @@ def optimize(players: list[dict], opp_lineup: list[dict], n: int = 20000) -> dic
         "lineup": {s: best[s] for s in SLOT_KEYS if s in best}, "eval": best_ev,
         "mean_lineup": {s: base[s] for s in SLOT_KEYS if s in base}, "mean_eval": base_ev,
         "changes_vs_mean": changes, "n_candidates": len(cands),
-        "posture": "favored" if best_ev["win_prob"] >= 0.5 else "underdog",
+        "posture": "favored" if best_ev["win_prob"] >= 0.5 else "underdog", "correlated": draws is not None,
     }

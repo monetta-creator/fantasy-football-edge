@@ -3,7 +3,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { PointsChart } from "@/components/PointsChart";
-import { fmt } from "@/lib/api";
+import { fmt, pct } from "@/lib/api";
+import { Info } from "@/components/Info";
+import { AiNote } from "@/components/AiNote";
 
 type Detail = {
   id: string; name: string; pos: string; team: string | null; bye: number | null; injury: Record<string, unknown> & { label?: string | null; type?: string | null; return_week?: number | null; ir_eligible?: boolean; flag?: boolean; comment?: string | null };
@@ -14,7 +16,10 @@ type Detail = {
   history: { season: number; games: number; mean: number | null; sd: number | null; weeks: { week: number; opp: string | null; pts: number; stats: Record<string, number>; extra?: Record<string, number> }[] };
   rates_2025: Record<string, number | null>; consistency: { startable_threshold?: number; startable_pct?: number; boom_pct?: number; bust_pct?: number; best?: number; worst?: number; median?: number; last4_avg?: number; first_half_avg?: number; second_half_avg?: number | null; trend?: string; rolling?: { week: number; avg3: number }[] };
   ranks: { proj_rank: number | null; vorp_rank: number | null; adp_rank: number | null; rank_2025_ppg: number | null; n_pos: number; n_2025: number };
+  market?: { available: boolean; points?: number; delta_market_vs_model?: number; model_mean_before?: number; blended_mean?: number; covered?: string[]; books?: string[]; lines?: Record<string, { line?: number; p_over?: number; p_td?: number; exp_td?: number; books?: number }>; kalshi?: Record<string, { median?: number; mean?: number } | number> };
+  team_consistency?: { team: string; implied: number; proj_points: number; factor: number; flag: string } | null;
 };
+const PROP_LABEL: Record<string, string> = { player_pass_yds: "Pass yds", player_pass_tds: "Pass TD", player_rush_yds: "Rush yds", player_receptions: "Receptions", player_reception_yds: "Rec yds", player_anytime_td: "Anytime TD" };
 const RATE_LABELS: Record<string, string> = { games: "Games", pass_att_per_game: "Att/g", comp_pct: "Comp %", yds_per_att: "Yds/att", pass_yds_per_game: "Pass yds/g", pass_td_rate_pct: "TD %", int_rate_pct: "INT %", rush_yds_per_game: "Rush yds/g", rush_td: "Rush TD", carries_per_game: "Carries/g",
   targets_per_game: "Targets/g", receptions_per_game: "Rec/g", catch_pct: "Catch %", yds_per_target: "Yds/target", yds_per_rec: "Yds/rec", rec_yds_per_game: "Rec yds/g", rec_td: "Rec TD", yds_per_carry: "Yds/carry", touches_per_game: "Touches/g", td_per_game: "TD/g",
   fg_made_per_game: "FG/g", fg_pct: "FG %", fg_50plus: "50+ made", xp_per_game: "XP/g", long: "Long", sacks_per_game: "Sacks/g", takeaways_per_game: "Takeaways/g", def_td: "TDs", pts_allowed_per_game: "PA/g",
@@ -75,7 +80,7 @@ export default function PlayerPage() {
         </div>
         {wk.note && <div className="text-[12px] muted mt-2">{wk.note}</div>}
         <div className="mt-3">
-          {!summary ? <button disabled={summarizing} className="pill" onClick={askSummary}>{summarizing ? "Asking the model…" : "AI summary"}</button> : summary.text ? (
+          {!summary ? <button disabled={summarizing} className="pill" onClick={askSummary}>{summarizing ? "✨ …" : "✨ Summary"}</button> : summary.text ? (
             <div className="text-[13px] p-3 rounded-xl" style={{ background: "var(--bg)" }}><span className="text-[11px] muted uppercase tracking-wide">AI summary · {summary.model} · numbers verified against our data</span><p className="mt-1">{summary.text}</p></div>
           ) : <div className="text-[12px] muted">AI summary unavailable ({summary.status}{summary.detail ? `: ${summary.detail}` : ""}).</div>}
         </div>
@@ -131,6 +136,24 @@ export default function PlayerPage() {
             </table>
           </div>
         )}
+      </div>
+      <div className="card p-4">
+        <div className="text-[12px] font-semibold uppercase tracking-wide muted flex items-center gap-2 mb-1">Market · week {wk.week}
+          <Info title="How to read">Sportsbook props are the market&apos;s projection for this player; each line is the median with the over/under prices giving the lean. We convert the props that exist into this league&apos;s points and blend them 50/50 into the weekly projection. Kalshi shows prediction-market ladders where priced. The Vegas factor is how much the whole team&apos;s projection was scaled toward its implied total.</Info>
+        </div>
+        {d.market?.available ? (
+          <>
+            <div className="grid grid-cols-3 gap-2 items-end tabular">
+              <div><div className="text-[24px] font-bold">{fmt(d.market.points, 1)}</div><div className="text-[10px] muted uppercase">market-implied pts</div></div>
+              <div><div className="text-[24px] font-bold">{fmt(d.market.model_mean_before, 1)}</div><div className="text-[10px] muted uppercase">model before blend</div></div>
+              <div><div className="text-[24px] font-bold" style={{ color: (d.market.delta_market_vs_model ?? 0) > 2 ? "var(--green)" : (d.market.delta_market_vs_model ?? 0) < -2 ? "var(--red)" : "var(--text)" }}>{(d.market.delta_market_vs_model ?? 0) > 0 ? "+" : ""}{fmt(d.market.delta_market_vs_model, 1)}</div><div className="text-[10px] muted uppercase">market − model</div></div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-2 text-[12px]">{Object.entries(d.market.lines ?? {}).map(([k, v]) => <span key={k} className="pill">{PROP_LABEL[k] ?? k} {v.line != null ? `${v.line}` : v.p_td != null ? pct(v.p_td) : ""}{v.p_over != null ? <span className="muted"> · over {pct(v.p_over)}</span> : null}</span>)}</div>
+            <div className="text-[11px] muted mt-1">Blended weekly mean {fmt(d.market.blended_mean, 1)} · books: {(d.market.books ?? []).join(", ") || "–"}</div>
+          </>
+        ) : <div className="text-[12px] muted">No sportsbook props pulled for this player this week{d.team_consistency ? `; team scaled ×${fmt(d.team_consistency.factor, 2)} (Vegas ${fmt(d.team_consistency.implied, 1)} vs projected ${fmt(d.team_consistency.proj_points, 1)})` : ""}.</div>}
+        {d.market?.kalshi && <div className="text-[12px] mt-2">Kalshi: {Object.entries(d.market.kalshi).map(([k, v]) => `${k} ${typeof v === "number" ? pct(v) : fmt((v as { median?: number }).median, 1)}`).join(" · ")}</div>}
+        <div className="mt-2"><AiNote topic="player_market" id={d.id} compact /></div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="card p-4">

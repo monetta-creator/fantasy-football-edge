@@ -62,7 +62,7 @@ export function Decide({ onChoose, busy }: { onChoose: (id: string) => void; bus
             ))}
           </div>
           <div className="card p-4">
-            {!ai ? <button disabled={asking} className="pill" onClick={askAi}>{asking ? "Asking the model…" : "AI comparison of A vs B"}</button> : ai.text ? (
+            {!ai ? <button disabled={asking} className="pill" onClick={askAi}>{asking ? "✨ …" : "✨ Compare A vs B"}</button> : ai.text ? (
               <div className="text-[13px]"><span className="text-[11px] muted uppercase tracking-wide">AI comparison · {ai.model} · numbers verified</span><p className="mt-1">{ai.text}</p></div>
             ) : <div className="text-[12px] muted">AI comparison unavailable ({ai.status}{ai.detail ? `: ${ai.detail}` : ""}).</div>}
           </div>

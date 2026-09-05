@@ -173,6 +173,7 @@ def meta():
         "llm": {"enabled": llm.available(s.settings), "model": s.settings.openrouter_model if llm.available(s.settings) else None,
                 "vision_model": s.settings.openrouter_vision_model if llm.available(s.settings) else None, "last": llm.LAST},
         "sim_count": s.settings.sim_count, "ir_plus": s.settings.ir_plus, "error": s.error,
+        "odds_configured": bool(s.settings.odds_api_key),
         "roster_slots": [{"slot": n, "elig": list(e)} for n, e in config.ROSTER_SLOTS], "bench": config.BENCH_SLOTS, "ir": config.IR_SLOTS,
     }
 

@@ -8,7 +8,7 @@ Requirements: Python 3.11+ with [uv](https://docs.astral.sh/uv/), Node 20+.
 
 ```bash
 cd fantasy-football
-cp .env.example .env            # optional: add OPENROUTER_API_KEY for LLM-written rationales
+cp .env.example .env            # add OPENROUTER_API_KEY (LLM) and ODDS_API_KEY (props); both optional
 cd backend && uv venv --python 3.12 .venv && uv pip install -e ".[dev]" && cd ..
 cd frontend && npm install && cd ..
 ./dev.sh                         # or double-click "Launch Edge.command" in Finder
@@ -45,6 +45,10 @@ After the draft, open **Roster → Seed from draft** once. Then each week:
 4. **Settings**: data freshness, model replacement levels, Yahoo connect (when the application is approved).
 
 Weekly projections: Sleeper weekly raw stats scored with league rules, DST points-allowed blended with the Vegas opponent implied total, per-player variance from 2025 weekly stats. The lineup optimizer simulates 20,000 games per candidate lineup and picks the one with the highest win probability.
+
+## Market check (Week tab)
+
+Three independent views of the same week: our projections scaled to Vegas team totals, sportsbook player props (blended 50/50 when pulled), and Kalshi prediction-market prices. Press **Pull props** once a week after lines post (about 90 API credits of the 500/month free tier); page loads never spend credits. The correlated simulation drives win probability: teammates rise and fall together, a defense moves against the opposing offense. Every block has an ⓘ note and a ✨ button for a grounded AI explanation.
 
 ## Player pages
 

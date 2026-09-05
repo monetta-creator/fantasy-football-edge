@@ -42,7 +42,7 @@ export function RecCard({ rec, onDraftMe, onOpen, busy }: { rec: Recommend; onDr
         <span>+{fmt(rec.margin, 1)} roster value vs. runner-up · {rec.n_sims} sims · {rec.computed_ms} ms · {rec.rationale_llm ? `AI-written (${rec.llm?.model ?? "LLM"}), numbers verified` : rec.llm?.status && rec.llm.status !== "ok" ? `model text (LLM ${rec.llm.status}${rec.llm.detail ? `: ${rec.llm.detail}` : ""})` : "model text"}</span>
       </div>
       <div className="mt-2">
-        {!explain ? <button disabled={explaining} className="pill" onClick={askExplain}>{explaining ? "Asking the model…" : "Explain this pick (AI)"}</button> : explain.text ? (
+        {!explain ? <button disabled={explaining} className="pill" onClick={askExplain}>{explaining ? "✨ …" : "✨ Explain this pick"}</button> : explain.text ? (
           <div className="text-[13px] p-3 rounded-xl" style={{ background: "var(--bg)" }}><span className="text-[11px] muted uppercase tracking-wide">AI explanation · {explain.model} · numbers verified</span><p className="mt-1">{explain.text}</p></div>
         ) : <div className="text-[12px] muted">AI explanation unavailable ({explain.status}{explain.detail ? `: ${explain.detail}` : ""}).</div>}
       </div>

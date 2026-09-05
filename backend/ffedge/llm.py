@@ -110,22 +110,30 @@ def _numbers_in(text: str) -> list[float]:
     return [float(x) for x in _NUM.findall(text.replace(",", ""))]
 
 
+# Proper nouns that are not players and may appear in any explanation
+DEFAULT_ALLOWED = ["Vegas", "Las Vegas", "Kalshi", "Sleeper", "Rotowire", "ESPN", "Yahoo", "DraftKings", "FanDuel", "BetMGM", "Caesars", "Bovada", "The Odds", "Monte Carlo",
+                   "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "Week", "Option A", "Option B", "Player A", "Player B", "Full PPR", "PPR"]
+
+
 def _fact_numbers(facts: dict) -> set[float]:
     out: set[float] = set()
     for n in _numbers_in(" ".join(str(k) for k in facts.keys())):  # keys like "week 1" or "2025 results" carry numbers too
-        out.add(round(n, 2)); out.add(round(n, 1)); out.add(round(n))
+        for x in (n, abs(n)):
+            out.add(round(x, 2)); out.add(round(x, 1)); out.add(round(x))
     for v in facts.values():
         if isinstance(v, bool) or v is None:
             continue
         if isinstance(v, (int, float)):
-            out.add(round(float(v), 2))
-            out.add(round(float(v), 1))
-            out.add(round(float(v)))
+            for x in (float(v), abs(float(v))):
+                out.add(round(x, 2)); out.add(round(x, 1)); out.add(round(x))
             if 0 <= float(v) <= 1:  # probabilities may be quoted as percents
-                out.add(round(float(v) * 100))
+                out.add(round(float(v) * 100)); out.add(round(float(v) * 100, 1))
         else:
             for n in _numbers_in(str(v)):
-                out.add(round(n, 2)); out.add(round(n, 1)); out.add(round(n))
+                for x in (n, abs(n)):
+                    out.add(round(x, 2)); out.add(round(x, 1)); out.add(round(x))
+                if 0 <= n <= 1:
+                    out.add(round(n * 100)); out.add(round(n * 100, 1))
     return out
 
 
@@ -142,11 +150,15 @@ def grounding_problem(text: str, facts: dict, allowed_names: list[str], max_word
         return f"number {n:g} not in facts"
     # name guard: a capitalised multi-word phrase must share a token with an allowed name (catches invented players,
     # tolerates sentence-initial verbs like "Draft Christian McCaffrey")
-    allowed_tokens = {t.lower().strip(".'") for a in allowed_names for t in a.split() if len(t) > 2}
+    from .sources.common import CITY_TO_ABBR, TEAM_NAMES
+    allowed_all = list(allowed_names) + DEFAULT_ALLOWED + list(TEAM_NAMES.values()) + [c.title() for c in CITY_TO_ABBR] + list(TEAM_NAMES.keys())
+    allowed_tokens = {t.lower().strip(".'") for a in allowed_all for t in a.split() if len(t) > 2}
     for m in re.finditer(r"\b([A-Z][a-z'\.]+(?: [A-Z][a-z'\.]+)+)\b", text):
-        cand = m.group(1)
+        cand = re.sub(r"^(The|This|That|These|Those|His|Her|Their|Its|Our|Your|My|A|An) ", "", m.group(1))
+        if " " not in cand:
+            continue  # single capitalised word after a determiner is not a player name
         toks = {t.lower().strip(".'") for t in cand.split()}
-        if any(cand in a or a in cand for a in allowed_names) or (toks & allowed_tokens):
+        if any(cand in a or a in cand for a in allowed_all) or (toks & allowed_tokens):
             continue
         return f"name '{cand}' not allowed"
     return None
