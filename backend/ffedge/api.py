@@ -72,7 +72,7 @@ class AppState:
         rec = out["recommended"]
         facts = {
             "player": f"{rec['name']} ({rec['pos']}, {rec['team']})",
-            "league scoring": "full PPR, 6-pt passing TD, 1 pt per 25 pass yds, 1 RB slot, 2 WR, TE, W/R, W/R/T flex, 3 bench, 6 IR, 12 teams",
+            "league scoring": "full PPR, 6-pt passing TD, 1 pt per 25 pass yds, 1 RB slot, 2 WR, TE, W/R, W/R/T flex, 6 bench, 6 IR, 12 teams",
             "projected points (league scoring)": rec["pts"],
             "VORP vs waiver replacement": rec["vorp"],
             "consensus ADP": rec["adp"],
@@ -391,19 +391,24 @@ def decide_explain():
         raise HTTPException(400, "draft complete")
     from . import api_week
     d = decide_mod.decide(out, picks, s.by_id, s.players, api_week._variance())
+    labels = "ABC"[: len(d["options"])]
     facts = {
         "my pick": d["decision_pick"], "my next pick": d["next_pick"], "round": d["round"], "my roster so far": [f"{x['name']} ({x['pos']})" for x in d["my_picks_so_far"]] or "empty",
-        "option A": {"player": f"{d['options'][0]['name']} ({d['options'][0]['pos']}, {d['options'][0]['team']})", "reasons": [r["text"] for r in d["options"][0]["reasons"]]},
-        "option B": {"player": f"{d['options'][1]['name']} ({d['options'][1]['pos']}, {d['options'][1]['team']})", "reasons": [r["text"] for r in d["options"][1]["reasons"]]},
-        "model preference": f"{d['options'][0]['name']} by {d['margin']} roster value, confidence {d['confidence']}",
     }
+    if d.get("lookahead"):
+        facts["note"] = f"picks before #{d['decision_pick']} are not made yet; each option's roster value counts only simulated drafts where he was still on the board"
+    for k, o in zip(labels, d["options"]):
+        facts[f"option {k}"] = {"player": f"{o['name']} ({o['pos']}, {o['team']})", "bull case": o["bull"], "bear case": o["bear"], "reasons": [r["text"] for r in o["reasons"]]}
+    facts["model preference"] = f"{d['options'][0]['name']} by {d['margin']} roster value, confidence {d['confidence']}"
     names = [o["name"] for o in d["options"]] + [x["name"] for x in d["my_picks_so_far"]]
-    # allow names mentioned inside reason texts (next-best players)
+    # allow names mentioned inside reason and bull/bear texts (next-best players)
     import re as _re
     for o in d["options"]:
         for r in o["reasons"]:
             names += _re.findall(r"\(([A-Z][A-Za-z'.\- ]+), \d", r["text"])
-    return llm.explain(s.settings, facts, names, "Compare option A and option B for this pick in 3-4 sentences and say which to take and why.")
+        names += _re.findall(r"over ([A-Z][A-Za-z'.\-]+ [A-Z][A-Za-z'.\-]+)", o["bull"])
+    which = ", ".join(labels[:-1]) + f" and {labels[-1]}" if len(labels) > 1 else labels
+    return llm.explain(s.settings, facts, names, f"Compare options {which} for this pick in 3-4 sentences and say which to take and why.")
 
 
 @app.get("/api/log")

@@ -69,3 +69,36 @@ def test_lineup_value_greedy_slots():
     assert {"QB", "RB", "WR", "TE", "K", "DEF", "W/R", "W/R/T"} <= slots
     # 9 starters: QB50 RB40 WR45 WR35 TE20 K5 DEF3 + flex RB30 + flex WR25 = 253, bench 10 and 8 at depth weights
     assert abs(score - (253 + BENCH_WEIGHTS[0] * 10 + BENCH_WEIGHTS[1] * 8)) < 1e-6
+
+
+def test_forced_ok_flags_drafts_where_the_forced_pick_was_already_gone():
+    a = _arrays()
+    sim = DraftSim(a)
+    mine = config.my_picks()[0]  # pick 5: opponents' picks 1-4 are simulated first
+    by_adp = np.argsort(a.adp)
+    r = sim.run([], forced={mine: int(by_adp[0])}, n_sims=60, seed=4)
+    assert r.scores is not None and r.scores.shape == (60,)
+    assert r.forced_ok.mean() < 0.2  # the ADP-1 player almost never survives to pick 5
+    r2 = sim.run([], forced={mine: int(by_adp[40])}, n_sims=60, seed=4)
+    assert r2.forced_ok.all()  # a mid-round player is always still there
+    # on the clock (picks 1-4 recorded) the forced pick is always honored
+    picks = [{"pick_no": k, "player_id": a.ids[int(by_adp[k - 1])], "team": k} for k in range(1, mine)]
+    r3 = sim.run(picks, forced={mine: int(by_adp[mine - 1])}, n_sims=30, seed=5)
+    assert r3.forced_ok.all()
+
+
+def test_summarize_conditions_on_honored_drafts_only_when_looking_ahead():
+    from ffedge.draft_sim import SimResult
+    from ffedge.recommend import MIN_HONORED, summarize
+
+    scores = np.concatenate([np.full(50, 100.0), np.full(50, 80.0)])
+    ok = np.concatenate([np.ones(50, dtype=bool), np.zeros(50, dtype=bool)])
+    r = SimResult(roster_score_mean=float(scores.mean()), roster_score_std=float(scores.std(ddof=1)), avail_at_next=None,
+                  best_pos_at_next={}, best_pos_at_next2={}, my_rosters=np.zeros((100, 1), dtype=int), n_sims=100, scores=scores, forced_ok=ok)
+    mean, se, n, p = summarize(r, lookahead=True)
+    assert mean == 100.0 and n == 50 and p == 0.5 and se == 0.0
+    mean_u, _, n_u, _ = summarize(r, lookahead=False)
+    assert mean_u == 90.0 and n_u == 100
+    few = ok.copy(); few[MIN_HONORED - 1:] = False
+    r.forced_ok = few
+    assert summarize(r, lookahead=True)[0] is None

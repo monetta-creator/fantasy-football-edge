@@ -84,6 +84,8 @@ class SimResult:
     best_pos_at_next2: dict
     my_rosters: np.ndarray  # (sims, my_picks) player indices
     n_sims: int
+    scores: np.ndarray | None = None  # (sims,) my final-roster value per simulated draft
+    forced_ok: np.ndarray | None = None  # (sims,) True where the forced decision pick was still on the board
 
 
 class DraftSim:
@@ -137,6 +139,9 @@ class DraftSim:
         pos_of = a.pos_idx
         vorp_pos = np.maximum(a.myval, 0.0)
         pts = a.pts
+        # Looking ahead (picks before mine not yet made), the forced candidate can be taken by a simulated
+        # opponent first; those drafts fall back to my heuristic and are flagged so callers can condition on it.
+        forced_ok = np.ones(S, dtype=bool)
         for k in range(start, self.total + 1):
             if k == next_pick:
                 avail_at_next = avail.copy()
@@ -151,6 +156,8 @@ class DraftSim:
                     choice = np.full(S, i, dtype=int)
                     # if not available in some sims (shouldn't happen for current pick), fall back to heuristic
                     bad = ~avail[rows, choice]
+                    if k == decision_pick:
+                        forced_ok = ~bad
                     if bad.any():
                         alt = self._my_choice(avail, counts[:, t, :], rnd, vorp_pos, pts, pos_of)
                         choice = np.where(bad, alt, choice)
@@ -185,6 +192,7 @@ class DraftSim:
             roster_score_mean=float(scores.mean()), roster_score_std=float(scores.std(ddof=1) if S > 1 else 0.0),
             avail_at_next=(avail_at_next.mean(axis=0) if avail_at_next is not None else None),
             best_pos_at_next=best_next or {}, best_pos_at_next2=best_next2 or {}, my_rosters=my_rosters, n_sims=S,
+            scores=scores, forced_ok=forced_ok,
         )
 
     def _best_by_pos(self, avail: np.ndarray) -> dict:

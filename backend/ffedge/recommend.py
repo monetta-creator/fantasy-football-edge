@@ -47,6 +47,29 @@ def confidence(margin: float, se: float) -> str:
     return "Low"
 
 
+MIN_HONORED = 40  # fewest simulated drafts a look-ahead candidate must be on the board in to be evaluated
+
+
+def summarize(r, lookahead: bool) -> tuple[float | None, float | None, int, float]:
+    """(mean, standard error, drafts used, P(on the board at the decision pick)) for one candidate.
+
+    On the clock every candidate is available, so all drafts count. Looking ahead (picks before mine not yet
+    made) the forced candidate is sometimes taken first and the sim falls back to my heuristic; those drafts
+    say nothing about him, so the value is the mean over drafts where he was actually there. Returns None
+    for the mean when too few drafts qualify.
+    """
+    if r.scores is None or r.forced_ok is None:
+        return r.roster_score_mean, r.roster_score_std / sqrt(r.n_sims), r.n_sims, 1.0
+    n_ok = int(r.forced_ok.sum())
+    p_av = n_ok / r.n_sims
+    if not lookahead or n_ok == r.n_sims:
+        return r.roster_score_mean, r.roster_score_std / sqrt(r.n_sims), r.n_sims, p_av
+    if n_ok < MIN_HONORED:
+        return None, None, n_ok, p_av
+    sc = r.scores[r.forced_ok]
+    return float(sc.mean()), float(sc.std(ddof=1) / sqrt(n_ok)) if n_ok > 1 else 0.0, n_ok, p_av
+
+
 class Recommender:
     def __init__(self, players: list[Player], arr: Arrays, info: dict, sim: DraftSim):
         self.players = players
@@ -191,35 +214,48 @@ class Recommender:
         next_pick = after[0] if after else None
         next_pick2 = after[1] if len(after) > 1 else None
         cands = self.candidates(picks, decision_pick)
-        results = []
-        for i in cands:
-            r = self.sim.run(picks, forced={decision_pick: i}, n_sims=n_sims, seed=seed)
-            results.append((i, r))
-        results.sort(key=lambda x: -x[1].roster_score_mean)
-        best_i, best_r = results[0]
-        se = [r.roster_score_std / sqrt(r.n_sims) for _, r in results]
-        margin = results[0][1].roster_score_mean - (results[1][1].roster_score_mean if len(results) > 1 else 0)
-        se_diff = sqrt(se[0] ** 2 + (se[1] ** 2 if len(se) > 1 else 0)) * 0.7  # common random numbers reduce variance
+        lookahead = decision_pick != cur
+        runs = [(i, self.sim.run(picks, forced={decision_pick: i}, n_sims=n_sims, seed=seed)) for i in cands]
+        results = []  # (i, r, mean, se, drafts used, P(available at decision))
+        unlikely = []
+        for i, r in runs:
+            mean, se_i, n_ok, p_av = summarize(r, lookahead)
+            if mean is None:
+                p = self.by_id[self.arr.ids[i]]
+                unlikely.append({"id": p.id, "name": p.name, "pos": p.pos, "adp": p.adp, "p_available_at_decision": round(p_av, 3)})
+                continue
+            results.append((i, r, mean, se_i, n_ok, p_av))
+        if len(results) < 2:  # almost nobody survives to my pick in the sims: fall back to unconditional values
+            results = [(i, r, *summarize(r, False)) for i, r in runs]
+            unlikely = []
+            lookahead = False
+        results.sort(key=lambda x: -x[2])
+        best_i, best_r, best_mean = results[0][0], results[0][1], results[0][2]
+        margin = best_mean - results[1][2]
+        # common random numbers reduce the variance of the difference on the clock; conditioning on different
+        # draft subsets when looking ahead removes that benefit
+        se_diff = sqrt(results[0][3] ** 2 + results[1][3] ** 2) * (1.0 if lookahead else 0.7)
         conf = confidence(margin, se_diff)
         avail_next = best_r.avail_at_next
 
-        def cand_row(i, r, rank):
+        def cand_row(i, r, mean, se_i, n_ok, p_av, rank):
             p = self.by_id[self.arr.ids[i]]
             gone = None
             if avail_next is not None and next_pick is not None:
                 gone = float(1.0 - avail_next[i]) if i != best_i else float(1.0 - self._avail_if_skipped(picks, decision_pick, i, results))
-            p_avail_now = 1.0 if decision_pick == cur else 1.0 - p_gone_by(p.adp, p.adp_sigma, cur, decision_pick)
+            p_avail_now = 1.0 if not lookahead else p_av
             return {
                 "rank": rank, "id": p.id, "name": p.name, "pos": p.pos, "team": p.team, "pts": p.pts, "ppg": p.ppg,
                 "vorp": p.vorp, "vols": p.vols, "adp": p.adp, "yahoo_rank": p.yahoo_rank, "bye": p.bye,
-                "roster_score": round(r.roster_score_mean, 1), "roster_score_se": round(r.roster_score_std / sqrt(r.n_sims), 1),
-                "delta_vs_best": round(r.roster_score_mean - best_r.roster_score_mean, 1),
+                "roster_score": round(mean, 1), "roster_score_se": round(se_i, 1),
+                "delta_vs_best": round(mean - best_mean, 1),
                 "p_gone_by_next": gone, "next_pick": next_pick, "p_available_at_decision": round(p_avail_now, 3),
+                "conditional": lookahead, "n_sims_used": n_ok,
                 "injury": p.injury, "proj_spread": p.proj_spread, "mechanism": mechanism(p, self.info),
                 "stash_value": p.__dict__.get("stash_value", 0.0),
             }
 
-        rows = [cand_row(i, r, k + 1) for k, (i, r) in enumerate(results)]
+        rows = [cand_row(*x, k + 1) for k, x in enumerate(results)]
         rec = rows[0]
         scarcity = self.scarcity(picks, best_r, next_pick, next_pick2)
         rationale = self.rationale_text(rec, scarcity, next_pick, decision_pick == cur)
@@ -231,11 +267,13 @@ class Recommender:
             "confidence": conf, "margin": round(margin, 1), "rationale": rationale,
             "scarcity": scarcity, "n_sims": n_sims, "computed_ms": int((time.time() - t0) * 1000),
             "likely_available_next": self.likely_available(best_r, next_pick),
+            "lookahead": lookahead, "unlikely_available": unlikely,
         }
 
     def _avail_if_skipped(self, picks, decision_pick, i, results) -> float:
         # availability of the recommended player at my next pick if I take the runner-up instead
-        for j, r in results[1:2]:
+        for x in results[1:2]:
+            r = x[1]
             if r.avail_at_next is not None:
                 return float(r.avail_at_next[i])
         return 0.0
@@ -301,13 +339,18 @@ class Recommender:
             if i not in cands and self.arr.pos[i] in ("QB", "RB", "WR", "TE"):
                 cands.append(i)
         rows = []
+        unlikely = []
         for i in cands:
             r = self.sim.run([], forced={pick_no: i}, n_sims=n_sims, seed=seed)
             p = self.by_id[self.arr.ids[i]]
+            mean, se_i, n_ok, p_av = summarize(r, lookahead=True)  # pre-draft: picks before mine are simulated
+            if mean is None:
+                unlikely.append({"id": p.id, "name": p.name, "pos": p.pos, "adp": p.adp, "p_available": round(p_av, 2)})
+                continue
             rows.append({
                 "id": p.id, "name": p.name, "pos": p.pos, "team": p.team, "pts": p.pts, "vorp": p.vorp, "adp": p.adp,
-                "p_available": round(1.0 - p_gone_by(p.adp, p.adp_sigma, 1, pick_no), 2),
-                "roster_score": round(r.roster_score_mean, 1), "se": round(r.roster_score_std / sqrt(n_sims), 1),
+                "p_available": round(p_av, 2), "n_sims_used": n_ok,
+                "roster_score": round(mean, 1), "se": round(se_i, 1),
                 "board_at_next": self.likely_available(r, config.my_picks()[1], limit=8),
                 "best_pos_at_next": {k: round(v["pts"], 0) for k, v in r.best_pos_at_next.items()},
                 "best_pos_at_next2": {k: round(v["pts"], 0) for k, v in r.best_pos_at_next2.items()},
@@ -317,4 +360,4 @@ class Recommender:
         base = rows[0]["roster_score"] if rows else 0
         for r in rows:
             r["delta"] = round(r["roster_score"] - base, 1)
-        return {"pick_no": pick_no, "next_picks": config.my_picks()[1:3], "candidates": rows, "n_sims": n_sims}
+        return {"pick_no": pick_no, "next_picks": config.my_picks()[1:3], "candidates": rows, "n_sims": n_sims, "unlikely_available": unlikely}
