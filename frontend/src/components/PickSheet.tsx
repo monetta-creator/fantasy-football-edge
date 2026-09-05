@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { Board, Brief, fmt } from "@/lib/api";
 
 type P = Brief & { ppg?: number; vols?: number; injury?: Brief["injury"]; stash_value?: number; mechanism?: string; p_gone_by_next?: number | null };
@@ -42,7 +43,10 @@ export function PickSheet({ p, board, onClose, onPick, busy }: { p: P; board: Bo
             )}
           </div>
         ) : <div className="mt-4 muted text-sm">Draft complete.</div>}
-        <button className="btn btn-ghost w-full mt-2 text-[14px]" onClick={onClose}>Cancel</button>
+        <div className="flex gap-2 mt-2">
+          <Link href={`/player/${encodeURIComponent(p.id)}`} className="btn btn-ghost flex-1 text-[14px] text-center">Details & 2025 chart</Link>
+          <button className="btn btn-ghost flex-1 text-[14px]" onClick={onClose}>Cancel</button>
+        </div>
       </div>
     </div>
   );

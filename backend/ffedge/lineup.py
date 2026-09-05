@@ -13,6 +13,12 @@ from . import config
 
 SLOT_ELIG = [set(e) for _, e in config.ROSTER_SLOTS]
 SLOT_NAMES = [s for s, _ in config.ROSTER_SLOTS]
+# Unique keys for lineup dicts (two WR slots): WR1, WR2
+SLOT_KEYS: list[str] = []
+for _s in SLOT_NAMES:
+    _n = sum(1 for k in SLOT_KEYS if k.rstrip("0123456789") == _s)
+    SLOT_KEYS.append(f"{_s}{_n + 1}" if SLOT_NAMES.count(_s) > 1 else _s)
+KEY_TO_SLOT = {k: s for k, s in zip(SLOT_KEYS, SLOT_NAMES)}
 
 
 def _assign(players: list[dict], order: list[int]) -> dict[str, dict] | None:
@@ -24,7 +30,7 @@ def _assign(players: list[dict], order: list[int]) -> dict[str, dict] | None:
         for s in range(len(SLOT_ELIG)):
             if caps[s] and p["pos"] in SLOT_ELIG[s]:
                 caps[s] = 0
-                out[SLOT_NAMES[s]] = p
+                out[SLOT_KEYS[s]] = p
                 break
     return out
 
@@ -63,7 +69,7 @@ def candidate_lineups(players: list[dict], max_alternates: int = 5) -> list[dict
     bench = sorted([p for p in players if p["id"] not in starters and p["mean"] > 0], key=lambda p: -p["mean"])[:max_alternates]
     for slot, starter in base.items():
         for alt in bench:
-            if alt["pos"] not in SLOT_ELIG[SLOT_NAMES.index(slot)]:
+            if alt["pos"] not in SLOT_ELIG[SLOT_KEYS.index(slot)]:
                 continue
             pool = [p for p in players if p["id"] != starter["id"]]
             forced = [i for i, p in enumerate(pool) if p["id"] == alt["id"]]
@@ -92,13 +98,13 @@ def optimize(players: list[dict], opp_lineup: list[dict], n: int = 20000) -> dic
     best_ev, best = scored[0]
     base_ev, base = next((ev, lu) for ev, lu in scored if lu is cands[0])
     changes = []
-    for slot in SLOT_NAMES:
+    for slot in SLOT_KEYS:
         a, b = base.get(slot), best.get(slot)
         if a and b and a["id"] != b["id"]:
             changes.append({"slot": slot, "out": a, "in": b})
     return {
-        "lineup": {s: best[s] for s in SLOT_NAMES if s in best}, "eval": best_ev,
-        "mean_lineup": {s: base[s] for s in SLOT_NAMES if s in base}, "mean_eval": base_ev,
+        "lineup": {s: best[s] for s in SLOT_KEYS if s in best}, "eval": best_ev,
+        "mean_lineup": {s: base[s] for s in SLOT_KEYS if s in base}, "mean_eval": base_ev,
         "changes_vs_mean": changes, "n_candidates": len(cands),
         "posture": "favored" if best_ev["win_prob"] >= 0.5 else "underdog",
     }

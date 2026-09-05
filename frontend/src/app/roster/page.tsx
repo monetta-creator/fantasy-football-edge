@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { WeekPlayer, api, api1, fmt } from "@/lib/api";
 import { ImportPage } from "@/components/ImportPage";
@@ -46,7 +47,7 @@ export default function RosterPage() {
           {[...team.players].sort((a, b) => SLOTS.indexOf(a.slot ?? "BN") - SLOTS.indexOf(b.slot ?? "BN")).map((p) => (
             <div key={p.id} className="flex items-center gap-2 py-1.5 border-b line last:border-0 text-[13px]">
               <select className="text-[12px] py-1 w-20" value={p.slot ?? "BN"} disabled={busy} onChange={(e) => run(() => api1.move(p.id, e.target.value, team.slot), `Moved ${p.name} to ${e.target.value}.`)}>{SLOTS.map((s) => <option key={s} value={s}>{s}</option>)}</select>
-              <span className="flex-1 min-w-0 truncate"><span className={`font-semibold pos-${p.pos}`}>{p.pos}</span> {p.name} <span className="muted">{p.team ?? ""}{p.on_bye ? " · BYE" : p.opp ? ` · vs ${p.opp}` : ""}{p.injury?.flag ? ` · ${p.injury.code}${p.injury.ir_eligible ? " (IR-ok)" : ""}` : ""}</span></span>
+              <span className="flex-1 min-w-0 truncate"><span className={`font-semibold pos-${p.pos}`}>{p.pos}</span> <Link className="underline decoration-dotted" href={`/player/${encodeURIComponent(p.id)}`}>{p.name}</Link> <span className="muted">{p.team ?? ""}{p.on_bye ? " · BYE" : p.opp ? ` · vs ${p.opp}` : ""}{p.injury?.flag ? ` · ${p.injury.code}${p.injury.ir_eligible ? " (IR-ok)" : ""}` : ""}</span></span>
               <span className="tabular w-10 text-right font-semibold">{fmt(p.mean, 1)}</span>
               <span className="tabular w-10 text-right muted text-[11px]">{fmt(p.season_pts, 0)}</span>
               <button disabled={busy} className="pill text-[11px]" onClick={() => run(() => api1.drop(p.id, team.slot), `Dropped ${p.name} (recorded).`)}>Drop</button>

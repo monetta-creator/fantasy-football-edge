@@ -94,10 +94,11 @@ def _recommendations(week: int, rows: dict, opt: dict, cur_eval: dict, my_player
     elif ins or outs:
         dwin = opt["eval"]["win_prob"] - cur_eval["win_prob"]
         dmean = opt["eval"]["mean"] - cur_eval["mean"]
-        names_in = ", ".join(_brief(i, rows)["name"] for i in ins) or "—"
-        names_out = ", ".join(_brief(o, rows)["name"] for o in outs) or "—"
+        names_in = ", ".join(_brief(i, rows)["name"] for i in ins)
+        names_out = ", ".join(_brief(o, rows)["name"] for o in outs)
+        headline = f"Start {names_in} over {names_out}" if ins and outs else (f"Start {names_in} (open slot)" if ins else f"Bench {names_out}")
         recs.append({
-            "kind": "lineup", "headline": f"Start {names_in} over {names_out}", "number": round(dwin * 100, 1), "unit": "win prob pts",
+            "kind": "lineup", "headline": headline, "number": round(dwin * 100, 1), "unit": "win prob pts",
             "secondary": f"{dmean:+.1f} projected", "confidence": "High" if dwin > 0.04 else "Medium" if dwin > 0.015 else "Low",
             "rationale": f"{opt['posture'].capitalize()} this week: the sim picks the lineup that maximizes P(win) ({opt['eval']['win_prob']:.0%}), not just projected mean.",
             "action": "apply_lineup",
@@ -153,7 +154,7 @@ def week(week_no: int | None = None):
         "week": wk, "empty": False, "my_team": config.MY_TEAM_NAME,
         "opponent": {"slot": opp_slot, "name": config.MY_SCHEDULE.get(wk), "lineup": [_brief(p["id"], rows, p.get("slot")) for p in opp_lineup], "eval": {"mean": cur_eval["opp_mean"], "sd": cur_eval["opp_sd"]}},
         "current": {"lineup": [_brief(p["id"], rows, p.get("slot")) for p in cur_lineup], "eval": cur_eval},
-        "optimized": {"lineup": {slot: _brief(p["id"], rows, slot) for slot, p in opt["lineup"].items()}, "eval": opt["eval"], "posture": opt["posture"], "n_candidates": opt["n_candidates"],
+        "optimized": {"lineup": {slot: _brief(p["id"], rows, lineup.KEY_TO_SLOT.get(slot, slot)) for slot, p in opt["lineup"].items()}, "slot_keys": lineup.SLOT_KEYS, "eval": opt["eval"], "posture": opt["posture"], "n_candidates": opt["n_candidates"],
                       "mean_eval": opt["mean_eval"]},
         "roster": [_brief(r["player_id"], rows, r["slot"]) for r in rosters.roster(my)],
         "recommendations": recs, "streaming": stream, "meta": {"projections": meta, "sources": "Sleeper weekly (Rotowire) + nflverse Vegas lines + 2025 variance"},
@@ -249,7 +250,7 @@ def apply_optimized():
     my_players = _players_for_lineup(config.MY_SLOT, rows)
     opp_lineup = _current_lineup(opp_slot, rows) if opp_slot else []
     opt = lineup.optimize(my_players, opp_lineup)
-    assignments = {p["id"]: slot for slot, p in opt["lineup"].items()}
+    assignments = {p["id"]: lineup.KEY_TO_SLOT.get(slot, slot) for slot, p in opt["lineup"].items()}
     # keep IR players on IR
     for r in rosters.roster(config.MY_SLOT):
         if r["slot"] == "IR":
@@ -393,3 +394,25 @@ def yahoo_sync():
         applied.append({"team": slot, "players": len(ids)})
     _STATE["week_cache"] = {}
     return {"applied": applied}
+
+
+@router.get("/api/players/{player_id}/detail")
+def player_detail(player_id: str):
+    s = _st()
+    p = s.by_id.get(player_id)
+    if not p:
+        raise HTTPException(404, "unknown player")
+    wk, rows, _ = week_rows()
+    r = rows.get(player_id)
+    hist = variance.history(player_id, _variance()) or {}
+    owner = rosters.owner_of().get(player_id)
+    names = draft_state.get_team_names()
+    return {
+        "id": p.id, "name": p.name, "pos": p.pos, "team": p.team, "bye": p.bye, "injury": p.injury, "adp": p.adp, "adp_sigma": p.adp_sigma,
+        "adp_sources": p.adp_sources, "yahoo_rank": p.yahoo_rank, "proj_sources": p.proj_sources, "proj_spread": p.proj_spread,
+        "vorp": p.vorp, "vols": p.vols, "repl_pts": p.__dict__.get("repl_pts"), "stash_value": p.__dict__.get("stash_value", 0.0), "outlook": p.outlook,
+        "owner": owner, "owner_name": names.get(owner) if owner else None,
+        "season": {"pts": p.pts, "games": p.games, "ppg": p.ppg, "stats": {k: round(v, 1) for k, v in p.stats.items()}, "breakdown": p.breakdown},
+        "week": ({"week": wk, **r.to_dict(), "stats": {k: round(v, 2) for k, v in r.stats.items()}} if r else {"week": wk}),
+        "history": {"season": config.SEASON - 1, "games": hist.get("games", 0), "mean": hist.get("mean"), "sd": hist.get("sd"), "weeks": hist.get("weeks", [])},
+    }

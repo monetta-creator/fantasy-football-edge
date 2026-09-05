@@ -4,13 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import { Rec, Week, WeekPlayer, api1, fmt, pct } from "@/lib/api";
 import { RecList } from "@/components/RecList";
 
-const SLOT_ORDER = ["QB", "WR", "WR", "RB", "TE", "W/R", "W/R/T", "K", "DEF"];
+const SLOT_KEYS = ["QB", "WR1", "WR2", "RB", "TE", "W/R", "W/R/T", "K", "DEF"];
 
 function Row({ p, slot }: { p: WeekPlayer; slot: string }) {
   return (
     <div className="flex items-center gap-2 py-1.5 border-b line last:border-0 text-[13px]">
       <span className="w-12 text-[11px] font-bold muted">{slot}</span>
-      <span className="flex-1 min-w-0 truncate"><span className={`font-semibold pos-${p.pos}`}>{p.pos}</span> {p.name} <span className="muted">{p.on_bye ? "BYE" : p.opp ? `vs ${p.opp}` : ""}{p.injury?.flag ? ` · ${p.injury.code}` : ""}</span></span>
+      <span className="flex-1 min-w-0 truncate"><span className={`font-semibold pos-${p.pos}`}>{p.pos}</span> <Link className="underline decoration-dotted" href={`/player/${encodeURIComponent(p.id)}`}>{p.name}</Link> <span className="muted">{p.on_bye ? "BYE" : p.opp ? `vs ${p.opp}` : ""}{p.injury?.flag ? ` · ${p.injury.code}` : ""}</span></span>
       <span className="tabular w-12 text-right font-semibold">{fmt(p.mean, 1)}</span>
       <span className="tabular w-16 text-right muted text-[11px]">{fmt(p.floor, 0)}–{fmt(p.ceiling, 0)}</span>
     </div>
@@ -63,7 +63,7 @@ export default function Dashboard() {
       <RecList recs={w.recommendations ?? []} onAction={act} busy={busy} />
       <div className="card p-4">
         <div className="flex items-center justify-between mb-1"><div className="text-[12px] font-semibold uppercase tracking-wide muted">Optimized lineup</div><span className="text-[11px] muted">proj · floor–ceiling</span></div>
-        {SLOT_ORDER.map((s, i) => { const p = Object.entries(w.optimized!.lineup).filter(([k]) => k === s)[SLOT_ORDER.slice(0, i).filter((x) => x === s).length]?.[1]; return p ? <Row key={i} p={p} slot={s} /> : <div key={i} className="py-1.5 text-[13px] muted">{s}: empty</div>; })}
+        {SLOT_KEYS.map((k) => { const p = w.optimized!.lineup[k]; return p ? <Row key={k} p={p} slot={k.replace(/\d$/, "")} /> : <div key={k} className="py-1.5 text-[13px] muted">{k.replace(/\d$/, "")}: empty</div>; })}
       </div>
       <div className="card p-4">
         <div className="text-[12px] font-semibold uppercase tracking-wide muted mb-1">{w.opponent.name}&apos;s projected lineup · {fmt(w.opponent.eval?.mean, 1)}</div>

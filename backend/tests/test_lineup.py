@@ -11,7 +11,8 @@ ROSTER = [_p(1, "QB", 22), _p(2, "QB", 16), _p(1, "RB", 18), _p(2, "RB", 14), _p
 
 def test_best_by_mean_fills_all_slots_optimally():
     lu = lineup.best_by_mean(ROSTER)
-    assert set(lu) == set(lineup.SLOT_NAMES)
+    assert set(lu) == set(lineup.SLOT_KEYS) and len(lu) == 9
+    assert {lu["WR1"]["id"], lu["WR2"]["id"]} == {"WR:1", "WR:2"}
     assert lu["QB"]["id"] == "QB:1" and lu["TE"]["id"] == "TE:1"
     starters = {p["id"] for p in lu.values()}
     # flex slots take RB2 (14) and WR3 (12); WR4 (8) and RB3 (9) sit
@@ -26,7 +27,7 @@ def test_win_probability_symmetry_and_variance_preference():
     strong = [dict(p, mean=p["mean"] * 1.5) for p in opp]
     res = lineup.optimize(ROSTER, strong)
     assert res["posture"] == "underdog" and res["eval"]["win_prob"] < 0.35
-    assert res["n_candidates"] >= 1 and set(res["lineup"]) == set(lineup.SLOT_NAMES)
+    assert res["n_candidates"] >= 1 and set(res["lineup"]) == set(lineup.SLOT_KEYS)
 
 
 def test_high_variance_helps_underdog():

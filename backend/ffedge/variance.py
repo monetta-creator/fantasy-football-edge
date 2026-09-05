@@ -1,8 +1,5 @@
-"""Weekly scoring variance from last season's nflverse weekly stats, under league scoring.
-
-Produces per-player weekly point standard deviation (players with >= 6 games) and a position-level
-fallback (coefficient of variation). Cached in data/cache/variance_<season>.json.
-"""
+"""Last season's weekly results (nflverse) under league scoring: per-player weekly series, sd, and a
+position-level CV fallback. Also feeds the player detail chart. Cached in data/cache/history_<season>.json."""
 from __future__ import annotations
 
 import csv
@@ -12,11 +9,13 @@ import statistics
 import httpx
 
 from . import config
-from .scoring import score
+from .scoring import pa_buckets_from_mean, score
 from .sources.cache import cached_json
-from .sources.common import norm_name
+from .sources.common import norm_name, norm_team
 
-URL = "https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_{season}.csv"
+PLAYER_URL = "https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_{season}.csv"
+TEAM_URL = "https://github.com/nflverse/nflverse-data/releases/download/stats_team/stats_team_week_{season}.csv"
+GAMES_URL = "https://github.com/nflverse/nfldata/raw/master/data/games.csv"
 
 COLS = {
     "passing_yards": "pass_yd", "passing_tds": "pass_td", "passing_interceptions": "pass_int", "passing_2pt_conversions": "pass_2pt",
@@ -25,40 +24,90 @@ COLS = {
     "special_teams_tds": "ret_td",
 }
 FUM_COLS = ["sack_fumbles_lost", "rushing_fumbles_lost", "receiving_fumbles_lost"]
-# Position-level weekly CV fallbacks (sd / mean) from typical NFL week-to-week spread.
-POS_CV = {"QB": 0.47, "RB": 0.57, "WR": 0.58, "TE": 0.63, "K": 0.5, "DEF": 0.7}  # medians from 2025 weekly stats
+K_COLS = {"fg_made_0_19": "fg_0_19", "fg_made_20_29": "fg_20_29", "fg_made_30_39": "fg_30_39", "fg_made_40_49": "fg_40_49", "pat_made": "xp_made"}
+EXTRA = {"QB": ["attempts", "completions", "carries"], "RB": ["carries", "targets"], "WR": ["targets", "carries"], "TE": ["targets"], "K": ["fg_att", "fg_long"]}
+# Position-level weekly CV fallbacks (medians from 2025 weekly stats).
+POS_CV = {"QB": 0.47, "RB": 0.57, "WR": 0.58, "TE": 0.63, "K": 0.5, "DEF": 0.7}
 MIN_GAMES = 6
 
 
+def _f(v) -> float:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _fetch(season: int) -> dict:
-    r = httpx.get(URL.format(season=season), timeout=120, follow_redirects=True)
+    r = httpx.get(PLAYER_URL.format(season=season), timeout=120, follow_redirects=True)
     r.raise_for_status()
-    per_player: dict[str, list[float]] = {}
+    series: dict[str, list[dict]] = {}
     names: dict[str, str] = {}
     for row in csv.DictReader(io.StringIO(r.text)):
-        if row.get("season_type") != "REG" or row.get("position") not in ("QB", "RB", "WR", "TE"):
+        pos = row.get("position")
+        if row.get("season_type") != "REG" or pos not in ("QB", "RB", "WR", "TE", "K"):
             continue
-        st = {}
-        for c, k in COLS.items():
-            v = row.get(c)
-            if v not in (None, "", "NA"):
-                st[k] = float(v)
-        st["fum_lost"] = sum(float(row.get(c) or 0) for c in FUM_COLS)
-        pts = score(st)
-        key = f"{row['position']}:{norm_name(row['player_display_name'])}"
-        per_player.setdefault(key, []).append(pts)
+        st: dict[str, float] = {}
+        if pos == "K":
+            for c, k in K_COLS.items():
+                st[k] = _f(row.get(c))
+            st["fg_50p"] = _f(row.get("fg_made_50_59")) + _f(row.get("fg_made_60_"))
+        else:
+            for c, k in COLS.items():
+                if row.get(c) not in (None, "", "NA"):
+                    st[k] = _f(row.get(c))
+            st["fum_lost"] = sum(_f(row.get(c)) for c in FUM_COLS)
+        extra = {c: _f(row.get(c)) for c in EXTRA.get(pos, []) if row.get(c) not in (None, "", "NA")}
+        key = f"{pos}:{norm_name(row['player_display_name'])}"
+        series.setdefault(key, []).append({"week": int(row["week"]), "opp": norm_team(row.get("opponent_team")), "team": norm_team(row.get("team")), "pts": round(score(st), 2), "stats": {k: round(v, 1) for k, v in st.items() if v}, **({"extra": extra} if extra else {})})
         names[key] = row["player_display_name"]
-    out = {}
-    for key, pts in per_player.items():
-        if len(pts) >= MIN_GAMES:
-            m = statistics.fmean(pts)
-            sd = statistics.pstdev(pts)
-            out[key] = {"games": len(pts), "mean": round(m, 2), "sd": round(sd, 2), "cv": round(sd / m, 3) if m > 0 else None, "name": names[key]}
-    return {"season": season, "players": out}
+    # DST: team weekly defensive stats + points allowed from game scores
+    try:
+        games = httpx.get(GAMES_URL, timeout=90, follow_redirects=True).text
+        pa: dict[tuple[str, int], float] = {}
+        for g in csv.DictReader(io.StringIO(games)):
+            if g.get("season") != str(season) or g.get("game_type") != "REG" or not g.get("home_score"):
+                continue
+            w = int(g["week"])
+            pa[(norm_team(g["home_team"]), w)] = _f(g["away_score"])
+            pa[(norm_team(g["away_team"]), w)] = _f(g["home_score"])
+        tr = httpx.get(TEAM_URL.format(season=season), timeout=90, follow_redirects=True)
+        tr.raise_for_status()
+        for row in csv.DictReader(io.StringIO(tr.text)):
+            if row.get("season_type") != "REG":
+                continue
+            team = norm_team(row["team"])
+            w = int(row["week"])
+            st = {
+                "dst_sack": _f(row.get("def_sacks")), "dst_int": _f(row.get("def_interceptions")), "dst_fum_rec": _f(row.get("fumble_recovery_opp")),
+                "dst_td": _f(row.get("def_tds")), "dst_safety": _f(row.get("def_safeties")), "dst_blk": _f(row.get("def_fg_blocks")) + _f(row.get("def_pat_blocks")) + _f(row.get("def_punt_blocks")),
+                "dst_ret_td": _f(row.get("special_teams_tds")),
+            }
+            allowed = pa.get((team, w))
+            if allowed is not None:
+                st.update({k: (1.0 if v > 0.5 else 0.0) for k, v in pa_buckets_from_mean(allowed, 1.0, sd=0.01).items()})
+                st["pa"] = allowed
+            key = f"DEF:{team}"
+            series.setdefault(key, []).append({"week": w, "opp": norm_team(row.get("opponent_team")), "team": team, "pts": round(score(st), 2), "stats": {k: round(v, 1) for k, v in st.items() if v}})
+            names[key] = f"{team} D/ST"
+    except Exception:
+        pass
+    players = {}
+    for key, rows in series.items():
+        rows.sort(key=lambda x: x["week"])
+        pts = [x["pts"] for x in rows]
+        rec = {"games": len(pts), "mean": round(statistics.fmean(pts), 2) if pts else 0.0, "sd": round(statistics.pstdev(pts), 2) if len(pts) > 1 else 0.0, "name": names[key], "weeks": rows}
+        rec["cv"] = round(rec["sd"] / rec["mean"], 3) if rec["mean"] > 0 and len(pts) >= MIN_GAMES else None
+        players[key] = rec
+    return {"season": season, "players": players}
 
 
 def load(season: int = config.SEASON - 1, force: bool = False) -> tuple[dict, dict]:
-    return cached_json(f"variance_{season}", lambda: _fetch(season), ttl_seconds=30 * 24 * 3600, force=force)
+    return cached_json(f"history_{season}", lambda: _fetch(season), ttl_seconds=30 * 24 * 3600, force=force)
+
+
+def history(player_key: str, table: dict) -> dict | None:
+    return (table.get("players") or {}).get(player_key)
 
 
 def weekly_sd(player_key: str, pos: str, weekly_mean: float, table: dict) -> float:

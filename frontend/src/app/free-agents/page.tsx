@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { WeekPlayer, api1, fmt } from "@/lib/api";
 
@@ -24,7 +25,7 @@ export default function FreeAgentsPage() {
         {rows.map((p) => (
           <div key={p.id} className="flex items-center gap-2 py-2 text-[13px]">
             <span className={`w-8 text-[12px] font-bold pos-${p.pos}`}>{p.pos}</span>
-            <span className="flex-1 min-w-0"><span className="block truncate font-medium text-[14px]">{p.name}{p.injury?.flag ? <span className="ml-1 text-[11px]" style={{ color: p.injury.ir_eligible ? "var(--blue)" : "var(--amber)" }}>{p.injury.code}</span> : null}</span><span className="block text-[11px] muted">{p.team ?? "FA"} · {p.on_bye ? "BYE" : p.opp ? `vs ${p.opp}` : "no game"} · season {fmt(p.season_pts)} · VORP {fmt(p.vorp)}{p.stash_value ? ` · stash ${fmt(p.stash_value)}` : ""}</span></span>
+            <span className="flex-1 min-w-0"><span className="block truncate font-medium text-[14px]"><Link className="underline decoration-dotted" href={`/player/${encodeURIComponent(p.id)}`}>{p.name}</Link>{p.injury?.flag ? <span className="ml-1 text-[11px]" style={{ color: p.injury.ir_eligible ? "var(--blue)" : "var(--amber)" }}>{p.injury.code}</span> : null}</span><span className="block text-[11px] muted">{p.team ?? "FA"} · {p.on_bye ? "BYE" : p.opp ? `vs ${p.opp}` : "no game"} · season {fmt(p.season_pts)} · VORP {fmt(p.vorp)}{p.stash_value ? ` · stash ${fmt(p.stash_value)}` : ""}</span></span>
             <span className="tabular text-right w-12"><span className="block font-bold text-[15px]">{fmt(p.mean, 1)}</span><span className="block text-[10px] muted">wk {week}</span></span>
             <button className="pill text-[11px]" onClick={() => api1.add(p.id).then(() => { setMsg(`Recorded add: ${p.name}. Make the claim in Yahoo.`); load(); }).catch((e) => setMsg(String(e)))}>Add</button>
           </div>
