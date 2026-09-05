@@ -13,8 +13,9 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1, maxi
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen">
+        <script dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t)}}catch(e){}" }} />
         <TabBar />
         <main className="mx-auto max-w-5xl px-4 pt-5 pb-12">{children}</main>
       </body>

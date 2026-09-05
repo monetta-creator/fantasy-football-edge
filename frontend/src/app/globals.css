@@ -1,41 +1,76 @@
 @import "tailwindcss";
 
+/* Edge design tokens. Cobalt is the only saturated color; green/amber/red are reserved for status. */
 :root {
+  color-scheme: light;
   --bg: #f5f5f7;
   --card: #ffffff;
   --text: #1d1d1f;
   --muted: #6e6e73;
-  --line: #e5e5ea;
-  --green: #34c759;
-  --amber: #ff9f0a;
-  --red: #ff3b30;
-  --blue: #0a84ff;
+  --line: #e2e2e7;
+  --accent: #2757ff;
+  --accent-ink: #ffffff;
+  --blue: #2757ff;
+  --green: #1f9d55;
+  --amber: #d98b0a;
+  --red: #e0362c;
+  --wedge: 18px;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #000000;
-    --card: #1c1c1e;
+    --card: #161618;
     --text: #f5f5f7;
     --muted: #98989d;
-    --line: #2c2c2e;
+    --line: #2a2a2e;
+    --accent: #5b7cff;
+    --accent-ink: #ffffff;
+    --blue: #5b7cff;
+    --green: #34c759;
+    --amber: #ffb340;
+    --red: #ff5f57;
   }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #000000;
+  --card: #161618;
+  --text: #f5f5f7;
+  --muted: #98989d;
+  --line: #2a2a2e;
+  --accent: #5b7cff;
+  --accent-ink: #ffffff;
+  --blue: #5b7cff;
+  --green: #34c759;
+  --amber: #ffb340;
+  --red: #ff5f57;
 }
 html, body { background: var(--bg); color: var(--text); }
 body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
-  padding-bottom: env(safe-area-inset-bottom);
 }
-.card { background: var(--card); border-radius: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 6px 20px rgba(0,0,0,.05); }
+.wordmark { font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; font-size: 14px; }
+.nav-item { padding: 6px 11px; border-radius: 8px; font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; color: var(--muted); }
+.nav-item[data-active="true"] { background: var(--text); color: var(--bg); font-weight: 700; }
+.card { background: var(--card); border-radius: 12px; border: 1px solid var(--line); }
+/* Hero cards carry the wedge: a clipped top-right corner. */
+.card-hero { clip-path: polygon(0 0, calc(100% - var(--wedge)) 0, 100% var(--wedge), 100% 100%, 0 100%); }
 .muted { color: var(--muted); }
 .line { border-color: var(--line); }
 .tabular { font-variant-numeric: tabular-nums; }
 .dot { display:inline-block; width:8px; height:8px; border-radius:9999px; }
-.pill { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:9999px; font-size:12px; font-weight:600; border:1px solid var(--line); }
-.btn { border-radius: 14px; padding: 12px 16px; font-weight: 600; transition: transform .05s; }
+.pill { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:600; border:1px solid var(--line); background: var(--card); }
+.btn { border-radius: 10px; padding: 12px 16px; font-weight: 600; transition: transform .05s; }
 .btn:active { transform: scale(.98); }
 .btn-primary { background: var(--text); color: var(--bg); }
-.btn-green { background: var(--green); color: #fff; }
+.btn-accent, .btn-green { background: var(--accent); color: var(--accent-ink); }
 .btn-ghost { background: transparent; border: 1px solid var(--line); }
-input, select { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
-.pos-QB { color: #af52de } .pos-RB { color: #34c759 } .pos-WR { color: #0a84ff } .pos-TE { color: #ff9f0a } .pos-K { color: #8e8e93 } .pos-DEF { color: #5e5ce6 }
+/* Uppercase labels are tracked wider than Tailwind's default so section headers read as one system. */
+.uppercase.tracking-wide { letter-spacing: 0.12em; }
+/* Bars end in a slant. */
+.bar { display:block; height: 8px; background: var(--line); clip-path: polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%); overflow: hidden; }
+.bar > span { display:block; height: 100%; background: var(--accent); clip-path: polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%); }
+input, select { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.pos-QB { color: #8e5bd6 } .pos-RB { color: #2f9e6a } .pos-WR { color: var(--accent) } .pos-TE { color: #cf7a12 } .pos-K { color: #8e8e93 } .pos-DEF { color: #6c6cd8 }

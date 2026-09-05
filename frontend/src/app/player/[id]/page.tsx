@@ -72,7 +72,7 @@ export default function PlayerPage() {
         <div className="text-[13px] muted"><span className={`font-semibold pos-${d.pos}`}>{d.pos}</span> · {d.team ?? "FA"} · bye {d.bye ?? "–"} · ADP {fmt(d.adp, 1)} (Yahoo rank {d.yahoo_rank ? fmt(d.yahoo_rank) : "–"}){d.owner_name ? ` · on ${d.owner_name}` : " · free agent"}</div>
         {inj.flag ? <div className="text-[13px] mt-1 flex items-center gap-2"><span className="dot" style={{ background: inj.ir_eligible ? "var(--blue)" : "var(--amber)" }} />{inj.label}{inj.type ? ` · ${inj.type}` : ""}{inj.return_week ? ` · expected back week ${inj.return_week}` : ""} · {inj.ir_eligible ? "IR-eligible" : "not IR-eligible"}{d.stash_value ? ` · stash value ${fmt(d.stash_value)}` : ""}</div> : null}
       </header>
-      <div className="card p-5">
+      <div className="card card-hero p-5">
         <div className="grid grid-cols-3 gap-3 items-end">
           <div><div className="text-[52px] leading-none font-bold tabular">{wk.mean != null ? fmt(wk.mean, 1) : "–"}</div><div className="text-[11px] muted uppercase mt-1">Week {wk.week} proj{wk.on_bye ? " (bye)" : wk.opp ? ` vs ${wk.opp}` : ""}</div>{wk.floor != null && <div className="text-[11px] muted">floor {fmt(wk.floor, 0)} · ceiling {fmt(wk.ceiling, 0)}</div>}</div>
           <div><div className="text-[28px] leading-none font-bold tabular">{fmt(d.season.pts)}</div><div className="text-[11px] muted uppercase mt-1">2026 season proj</div><div className="text-[11px] muted">{fmt(d.season.ppg, 1)}/g · {fmt(d.season.games, 0)} games</div></div>
@@ -179,7 +179,7 @@ export default function PlayerPage() {
           {breakdown.map(([k, v]) => (
             <div key={k} className="flex items-center gap-2 py-1 text-[12px]">
               <span className="w-24 muted truncate">{LABELS[k] ?? k}</span>
-              <span className="flex-1 h-2 rounded-full" style={{ background: "var(--line)" }}><span className="block h-2 rounded-full" style={{ width: `${Math.min(100, (Math.abs(v) / maxAbs) * 100)}%`, background: v < 0 ? "var(--red)" : "var(--blue)" }} /></span>
+              <span className="bar flex-1"><span style={{ width: `${Math.min(100, (Math.abs(v) / maxAbs) * 100)}%`, background: v < 0 ? "var(--red)" : "var(--accent)" }} /></span>
               <span className="w-14 text-right tabular">{v > 0 ? "+" : ""}{fmt(v, 0)}</span>
               <span className="w-14 text-right muted tabular">{fmt(d.season.stats[k], k.includes("yd") ? 0 : 1)}</span>
             </div>

@@ -27,7 +27,7 @@ export function Decide({ onChoose, busy }: { onChoose: (id: string) => void; bus
           <div className="text-[16px] font-bold">Run the model for my pick</div>
           <div className="text-[12px] muted">Uses every player you have marked (Gone / Mine / team picks) and treats everyone else as available. Returns the two best options with reasons; you choose.</div>
         </div>
-        <button disabled={running || busy} className="btn btn-green text-[15px]" onClick={() => run(true)}>{running ? "Simulating…" : d ? "Run again" : "Run"}</button>
+        <button disabled={running || busy} className="btn btn-accent text-[15px]" onClick={() => run(true)}>{running ? "Simulating…" : d ? "Run again" : "Run"}</button>
       </div>
       {err && <div className="text-[13px]" style={{ color: "var(--red)" }}>{err}</div>}
       {d?.done && <div className="card p-4 text-sm muted">Draft complete.</div>}
@@ -36,7 +36,7 @@ export function Decide({ onChoose, busy }: { onChoose: (id: string) => void; bus
           <div className="text-[13px] muted">Pick #{d.decision_pick} (round {d.round}) · {d.drafted_count} players marked · your next pick #{d.next_pick ?? "–"} · {d.n_sims} sims per option · {d.computed_ms} ms · you have: {d.my_picks_so_far.map((p) => `${p.name} (${p.pos})`).join(", ") || "nobody yet"}</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {d.options.map((o, i) => (
-              <div key={o.id} className="card p-5 border-l-4" style={{ borderLeftColor: i === 0 ? "var(--green)" : "var(--blue)" }}>
+              <div key={o.id} className="card card-hero p-5 border-l-4" style={{ borderLeftColor: i === 0 ? "var(--accent)" : "var(--line)" }}>
                 <div className="flex items-center justify-between">
                   <div className="text-[12px] font-semibold uppercase tracking-wide muted">Option {i === 0 ? "A" : "B"}{i === 0 ? " · model favorite" : ""}</div>
                   {i === 0 && <span className="pill"><span className="dot" style={{ background: d.confidence === "High" ? "var(--green)" : d.confidence === "Medium" ? "var(--amber)" : "var(--red)" }} />{d.confidence} · +{fmt(d.margin, 1)}</span>}
@@ -57,7 +57,7 @@ export function Decide({ onChoose, busy }: { onChoose: (id: string) => void; bus
                     </li>
                   ))}
                 </ul>
-                <button disabled={busy} className="btn btn-primary w-full mt-4 text-[15px]" onClick={() => onChoose(o.id)}>I took {o.name.split(" ").slice(-1)[0]}</button>
+                <button disabled={busy} className={`btn ${i === 0 ? "btn-accent" : "btn-primary"} w-full mt-4 text-[15px]`} onClick={() => onChoose(o.id)}>I took {o.name.split(" ").slice(-1)[0]}</button>
               </div>
             ))}
           </div>

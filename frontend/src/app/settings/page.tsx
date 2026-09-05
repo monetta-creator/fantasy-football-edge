@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Meta, api, api1, fmt } from "@/lib/api";
+import { ThemePicker } from "@/components/ThemeToggle";
 
 export default function SettingsPage() {
   const [meta, setMeta] = useState<Meta | null>(null);
@@ -17,6 +18,11 @@ export default function SettingsPage() {
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Settings</h1>
       {msg && <div className="text-sm" style={{ color: "var(--red)" }}>{msg}</div>}
+      <div className="card p-4">
+        <div className="text-[12px] font-semibold uppercase tracking-wide muted mb-2">Appearance</div>
+        <ThemePicker />
+        <div className="text-[12px] muted mt-2">System follows macOS. The choice is remembered in this browser.</div>
+      </div>
       <div className="card p-4">
         <div className="text-[12px] font-semibold uppercase tracking-wide muted mb-2">Team names (draft slot order)</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

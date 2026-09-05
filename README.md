@@ -50,6 +50,10 @@ Weekly projections: Sleeper weekly raw stats scored with league rules, DST point
 
 Three independent views of the same week: our projections scaled to Vegas team totals, sportsbook player props (blended 50/50 when pulled), and Kalshi prediction-market prices. Press **Pull props** once a week after lines post (about 90 API credits of the 500/month free tier); page loads never spend credits. The correlated simulation drives win probability: teammates rise and fall together, a defense moves against the opposing offense. Every block has an ⓘ note and a ✨ button for a grounded AI explanation.
 
+## Look and feel
+
+Wedge identity: cobalt is the single accent, hero cards carry a clipped corner, labels are tracked uppercase. The top-bar glyph (or Settings → Appearance) switches system / light / dark; the choice is remembered per browser.
+
 ## Player pages
 
 Click any player name. Hero numbers (this week, season projection, VORP), the 2025 weekly points chart re-scored with league rules with a 3-week rolling average and the 2026 per-game line, consistency tiles (startable / boom / bust / median / last 4 / half-season trend), position ranks, 2025 per-game rates, the projection breakdown by stat, every source's number, and an **AI summary** button. Type a name in **Benchmark against another player** to overlay his 2025 line and compare every metric side by side.

@@ -55,7 +55,7 @@ export default function Dashboard() {
         <div className="text-[22px] font-bold leading-tight">Week {w.week} vs {w.opponent.name ?? "?"}</div>
         <div className="text-[13px] muted">{w.my_team} · {w.optimized!.posture} · {w.optimized!.n_candidates} lineups simulated</div>
       </header>
-      <div className="card p-5 border-l-4" style={{ borderLeftColor: wp >= 0.55 ? "var(--green)" : wp >= 0.45 ? "var(--amber)" : "var(--red)" }}>
+      <div className="card card-hero p-5 border-l-4" style={{ borderLeftColor: wp >= 0.55 ? "var(--green)" : wp >= 0.45 ? "var(--amber)" : "var(--red)" }}>
         <div className="text-[12px] font-semibold uppercase tracking-wide muted flex items-center gap-2">Win probability (current lineup)
           <Info title="How this is computed">20,000 simulated games. Each NFL game&apos;s score is drawn from its Vegas line, every player scales with his team&apos;s simulated score plus his own week-to-week noise (from 2025 results), and your lineup total is compared with your opponent&apos;s projected lineup. Above 55% is green, below 45% red.</Info>
         </div>

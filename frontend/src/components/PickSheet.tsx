@@ -30,7 +30,7 @@ export function PickSheet({ p, board, onClose, onPick, busy }: { p: P; board: Bo
               </select>
               <button disabled={busy} className="btn btn-primary text-[15px]" onClick={() => onPick(p.id, team)}>Took him · #{board.pick_no}</button>
             </div>
-            <button disabled={busy} className="btn btn-green w-full text-[16px]" onClick={() => onPick(p.id, 5)}>I took him</button>
+            <button disabled={busy} className="btn btn-accent w-full text-[16px]" onClick={() => onPick(p.id, 5)}>I took him</button>
           </div>
         ) : <div className="mt-4 muted text-sm">Draft complete.</div>}
         <div className="flex gap-2 mt-2">

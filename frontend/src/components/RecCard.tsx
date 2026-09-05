@@ -14,7 +14,7 @@ export function RecCard({ rec, onDraftMe, onOpen, busy }: { rec: Recommend; onDr
   };
   const inj = c.injury?.flag ? c.injury : null;
   return (
-    <div className="card p-5 border-l-4" style={{ borderLeftColor: "var(--green)" }}>
+    <div className="card card-hero p-5 border-l-4" style={{ borderLeftColor: "var(--accent)" }}>
       <div className="flex items-center justify-between">
         <div className="text-[12px] font-semibold uppercase tracking-wide muted">{rec.is_me ? "Recommended pick" : `Target for your pick #${rec.decision_pick}`}</div>
         <span className="pill"><span className="dot" style={{ background: confColor[rec.confidence] }} />{rec.confidence}</span>
@@ -47,7 +47,7 @@ export function RecCard({ rec, onDraftMe, onOpen, busy }: { rec: Recommend; onDr
         ) : <div className="text-[12px] muted">AI explanation unavailable ({explain.status}{explain.detail ? `: ${explain.detail}` : ""}).</div>}
       </div>
       {rec.is_me ? (
-        <button disabled={busy} className="btn btn-green w-full mt-4 text-[16px]" onClick={() => onDraftMe(c)}>I took {c.name.split(" ").slice(-1)[0]} · record pick #{rec.pick_no}</button>
+        <button disabled={busy} className="btn btn-accent w-full mt-4 text-[16px]" onClick={() => onDraftMe(c)}>I took {c.name.split(" ").slice(-1)[0]} · record pick #{rec.pick_no}</button>
       ) : (
         <div className="text-[12px] muted mt-3">Available at #{rec.decision_pick} with {pct(c.p_available_at_decision)} probability.</div>
       )}
