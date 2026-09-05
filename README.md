@@ -14,7 +14,7 @@ cd frontend && npm install && cd ..
 ./dev.sh                         # starts backend :8000 and frontend :3000 on all interfaces
 ```
 
-`dev.sh` prints the LAN URL (for example `http://192.168.1.20:3000/draft`). Open it on your iPhone (same Wi-Fi), then Share → **Add to Home Screen** so it runs full-screen.
+Then open `http://localhost:3000/draft` in your browser. (`dev.sh` also prints a LAN URL if you ever want it on a phone.)
 
 First start pulls projections/ADP/injuries (about 10 s) and caches them in `data/cache/`. The draft board is in `data/ffedge.db`.
 
@@ -31,7 +31,7 @@ Tests: `cd backend && .venv/bin/python -m pytest -q` (scoring rescaler, VORP, AD
 6. **Stash** tab: injured players ranked by return-week value. Blue dot = can go straight to an IR slot on Yahoo; amber = must sit on the bench first (Questionable/Out with IR-only slots).
 7. Rounds 12–15 the model starts considering K/DEF; it will not recommend them earlier because streaming replaces them for free.
 
-Recommendations recompute in about a second after every pick (300 draft simulations per candidate); the phone polls every 2.5 s.
+Recommendations recompute in about a second after every pick (300 draft simulations per candidate); the page polls every 2.5 s.
 
 ## Weekly loop (Phase 1)
 
