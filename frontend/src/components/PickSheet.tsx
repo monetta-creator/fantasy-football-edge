@@ -1,12 +1,11 @@
 "use client";
-import { useState } from "react";
 import Link from "next/link";
+import { TeamChips } from "@/components/TeamChips";
 import { Board, Brief, fmt } from "@/lib/api";
 
 type P = Brief & { ppg?: number; vols?: number; injury?: Brief["injury"]; stash_value?: number; mechanism?: string; p_gone_by_next?: number | null };
 
 export function PickSheet({ p, board, onClose, onPick, busy }: { p: P; board: Board; onClose: () => void; onPick: (id: string, team?: number) => void; busy: boolean }) {
-  const [team, setTeam] = useState<number>(board.on_clock_team ?? 1);
   const inj = p.injury;
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center" onClick={onClose} style={{ background: "rgba(0,0,0,.35)" }}>
@@ -24,13 +23,8 @@ export function PickSheet({ p, board, onClose, onPick, busy }: { p: P; board: Bo
         {p.mechanism && <p className="mt-3 text-[13px] muted">{p.mechanism}</p>}
         {board.pick_no ? (
           <div className="mt-4 space-y-2">
-            <div className="flex gap-2 items-center">
-              <select className="flex-1 text-[15px]" value={team} onChange={(e) => setTeam(Number(e.target.value))}>
-                {Object.entries(board.teams).map(([slot, name]) => <option key={slot} value={slot}>{slot}. {name}{Number(slot) === board.on_clock_team ? " (on the clock)" : ""}</option>)}
-              </select>
-              <button disabled={busy} className="btn btn-primary text-[15px]" onClick={() => onPick(p.id, team)}>Took him · #{board.pick_no}</button>
-            </div>
-            <button disabled={busy} className="btn btn-accent w-full text-[16px]" onClick={() => onPick(p.id, 5)}>I took him</button>
+            <div className="text-[11px] muted">Who took him at #{board.pick_no}? Tap a team.</div>
+            <TeamChips teams={board.teams} onClock={board.on_clock_team} mySlot={5} busy={busy} onPick={(team) => onPick(p.id, team)} />
           </div>
         ) : <div className="mt-4 muted text-sm">Draft complete.</div>}
         <div className="flex gap-2 mt-2">

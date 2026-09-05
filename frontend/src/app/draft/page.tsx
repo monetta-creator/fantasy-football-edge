@@ -14,6 +14,7 @@ import { Pick4Panel } from "@/components/Pick4";
 import { ImportBoard } from "@/components/ImportBoard";
 import { Rankings } from "@/components/Rankings";
 import { Decide } from "@/components/Decide";
+import { RecordPick } from "@/components/RecordPick";
 
 type SheetP = Brief & { ppg?: number; vols?: number; stash_value?: number; mechanism?: string; p_gone_by_next?: number | null };
 const SUBTABS = ["Decide", "Rankings", "Board", "Roster", "Scarcity", "Stash", "Plan"] as const;
@@ -80,6 +81,7 @@ export default function DraftPage() {
         </div>
       </header>
       {err && <div className="text-[12px]" style={{ color: "var(--red)" }}>{err}</div>}
+      <RecordPick board={board} busy={busy} mySlot={5} onUndo={doUndo} onPick={async (id, team) => { await doPick(id, team); }} />
 
       <nav className="flex gap-6 overflow-x-auto border-b line -mx-1 px-1" aria-label="Draft sections">
         {SUBTABS.map((t) => (
@@ -94,7 +96,7 @@ export default function DraftPage() {
         </>
       ) : !done ? <div className="card p-5 text-sm muted">Computing recommendation…</div> : null)}
 
-      {tab === "Decide" && <Decide busy={busy} onChoose={(id) => doPick(id, board.is_me ? undefined : 5)} />}
+      {tab === "Decide" && <Decide busy={busy} version={version} onChoose={(id) => doPick(id, board.is_me ? undefined : 5)} />}
       {tab === "Rankings" && (
         <Rankings version={version} busy={busy} onGone={(p) => setSheet(p)} onMine={(p) => doPick(p.id, board.is_me ? undefined : 5)} />
       )}

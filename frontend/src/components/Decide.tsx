@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Injury, fmt } from "@/lib/api";
 
 type Reason = { kind: string; text: string; good: boolean };
@@ -9,7 +9,7 @@ type Decision = { done?: boolean; error?: string; pick_no: number; decision_pick
 
 const KIND: Record<string, string> = { value: "Value", scarcity: "Scarcity", availability: "Availability", fit: "Roster fit", simulation: "Simulation", scoring: "League scoring", market: "Market", risk: "Risk", sources: "Sources", history: "2025" };
 
-export function Decide({ onChoose, busy }: { onChoose: (id: string) => void; busy: boolean }) {
+export function Decide({ onChoose, busy, version = 0 }: { onChoose: (id: string) => void; busy: boolean; version?: number }) {
   const [d, setD] = useState<Decision | null>(null);
   const [running, setRunning] = useState(false);
   const [ai, setAi] = useState<{ text: string | null; status: string; model?: string | null; detail?: string | null } | null>(null);
@@ -20,6 +20,15 @@ export function Decide({ onChoose, busy }: { onChoose: (id: string) => void; bus
     try { const r = await fetch(`/api/decide?fresh=${fresh}`, { cache: "no-store" }); if (!r.ok) throw new Error(await r.text()); setD(await r.json()); } catch (e) { setErr(String(e)); } finally { setRunning(false); }
   };
   const askAi = async () => { setAsking(true); try { const r = await fetch("/api/decide/explain", { method: "POST" }); setAi(await r.json()); } catch (e) { setAi({ text: null, status: "error", detail: String(e) }); } finally { setAsking(false); } };
+  const seen = useRef(version);
+  useEffect(() => {
+    if (version === seen.current) return;
+    seen.current = version;
+    if (!d) return;
+    const t = setTimeout(() => run(true), 300);  // board changed: refresh the two options
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version]);
   return (
     <div className="space-y-3">
       <div className="card p-5 flex flex-wrap items-center gap-3">
